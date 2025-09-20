@@ -1,7 +1,7 @@
 import { supabase } from '../integrations/supabase/client';
 
 // Service URLs
-const LOCAL_SERVICE_URL = 'http://localhost:8082';
+const LOCAL_SERVICE_URL = 'http://localhost:8085';
 
 interface MerchantSyncResult {
   success: boolean;
@@ -92,7 +92,7 @@ export async function syncMerchants(userId: string, accessToken?: string): Promi
     const isLocalAvailable = await checkLocalService();
 
     if (!isLocalAvailable) {
-      throw new Error('Local service is not available. Please ensure the iFood Token Service is running on port 8081.');
+      throw new Error('Local service is not available. Please ensure the iFood Token Service is running on port 8085.');
     }
 
     // Use local service only
@@ -189,7 +189,7 @@ export async function syncAllMerchants(userId: string): Promise<{
         total_processed: 0,
         updated_merchants: [],
         failed_merchants: [],
-        error: 'Local service is not available. Please ensure the iFood Token Service is running on port 8081.'
+        error: 'Local service is not available. Please ensure the iFood Token Service is running on port 8085.'
       };
     }
 
@@ -308,7 +308,7 @@ export async function getMerchantDetail(merchantId: string, userId: string): Pro
     if (!isLocalAvailable) {
       return {
         success: false,
-        error: 'Merchant não encontrado no banco e serviço backend (porta 8081) não está disponível. Inicie o backend para buscar novos merchants na API iFood.'
+        error: 'Merchant não encontrado no banco e serviço backend (porta 8085) não está disponível. Inicie o backend para buscar novos merchants na API iFood.'
       };
     }
 

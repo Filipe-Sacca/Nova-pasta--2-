@@ -80,11 +80,11 @@ export const useIfoodMerchants = (userId?: string) => {
       
       const deduplicatedData = Array.from(merchantsMap.values());
       logger.debug('✅ Lojas após deduplicação:', deduplicatedData.length);
-      
+
       if (data && data.length > deduplicatedData.length) {
         logger.debug(`⚠️ Removidas ${data.length - deduplicatedData.length} duplicatas da interface`);
       }
-      
+
       return deduplicatedData;
     },
     enabled: !!userId,

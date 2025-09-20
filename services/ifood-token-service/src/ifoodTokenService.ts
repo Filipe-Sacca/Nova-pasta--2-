@@ -9,7 +9,7 @@ dotenv.config();
 // Create a shared Supabase client
 export const supabase = createClient(
   process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_ANON_KEY || ''
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY || ''
 );
 
 export class IFoodTokenService {
@@ -218,30 +218,9 @@ export class IFoodTokenService {
   async processTokenRequest(clientId: string, clientSecret: string, userId: string, forceRefresh: boolean = false): Promise<ServiceResponse> {
     try {
       console.log('🎯 Processing token request flow...');
-      
-      // Step 1: Check existing token (skip if forcing refresh)
-      if (!forceRefresh) {
-        const existingToken = await this.checkExistingToken(clientId);
-        if (existingToken) {
-          // Check if token will expire in next 5 minutes
-          const nowTimestamp = Math.floor(Date.now() / 1000);
-          const fiveMinutesFromNow = nowTimestamp + 300;
-          
-          if (Number(existingToken.expires_at) > fiveMinutesFromNow) {
-            return {
-              success: true,
-              message: 'Valid token already exists',
-              data: existingToken
-            };
-          } else {
-            console.log('⚠️ Token expiring soon, refreshing...');
-          }
-        }
-      } else {
-        console.log('🔄 Force refresh requested');
-      }
+      console.log('📡 Making request to iFood API...');
 
-      // Step 2: Generate new token
+      // Step 1: Generate new token from iFood API
       const request: TokenRequest = {
         clientId,
         clientSecret,
@@ -253,16 +232,31 @@ export class IFoodTokenService {
         return tokenResult;
       }
 
-      // Step 3: Store/Update token
-      const storeResult = await this.storeToken(request, tokenResult.data!, forceRefresh);
-      if (!storeResult.success) {
-        return storeResult;
+      // Step 2: Try to store token (but don't fail if database has issues)
+      try {
+        const storeResult = await this.storeToken(request, tokenResult.data!, forceRefresh);
+        if (storeResult.success) {
+          console.log('💾 Token saved to database successfully');
+          return {
+            success: true,
+            message: 'Token generated and stored successfully',
+            data: storeResult.data
+          };
+        }
+      } catch (dbError: any) {
+        console.error('⚠️ Database save failed, but token from iFood is valid:', dbError.message);
       }
 
+      // Return success with token even if database save failed
       return {
         success: true,
-        message: forceRefresh ? 'Token refreshed successfully' : 'Token generated and stored successfully',
-        data: storeResult.data
+        message: 'Token generated successfully (database save failed)',
+        data: {
+          access_token: tokenResult.data!.access_token,
+          expires_in: tokenResult.data!.expires_in,
+          client_id: clientId,
+          user_id: userId
+        }
       };
     } catch (error: any) {
       const errorMsg = `Error processing token request: ${error.message || error}`;

@@ -917,12 +917,28 @@ export class IFoodProductService {
         console.log('📷 [SEM IMAGEM] Produto será criado sem imagem');
       }
 
-      // 3. Detectar se é criação ou atualização
-      const isUpdate = itemData.item.id && itemData.item.productId;
-      const productUuid = isUpdate ? itemData.item.productId : randomUUID();
+      // 3. Validar UUID e forçar geração se necessário
+      function isValidUUID(str: string): boolean {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(str);
+      }
+
+      // Sempre gerar UUID válido para criação, validar para atualização
+      let productUuid: string;
+      let isUpdate = false;
+
+      if (itemData.item.id && itemData.item.productId && isValidUUID(itemData.item.productId)) {
+        // Atualização com UUID válido
+        productUuid = itemData.item.productId;
+        isUpdate = true;
+      } else {
+        // Criação ou UUID inválido - sempre gerar novo UUID válido
+        productUuid = randomUUID();
+        isUpdate = false;
+      }
 
       console.log(`🔍 [OPERATION] ${isUpdate ? 'ATUALIZAÇÃO' : 'CRIAÇÃO'} de produto`);
-      console.log(`🔑 [UUID] Usando productId: ${productUuid}`);
+      console.log(`🔑 [UUID] Usando productId válido: ${productUuid}`);
 
       // 4. Montar payload com imagePath se disponível
       const ifoodPayload: any = {
@@ -932,7 +948,9 @@ export class IFoodProductService {
           price: {
             value: itemData.item.price.value
           },
-          categoryId: itemData.item.categoryId
+          categoryId: itemData.item.categoryId && isValidUUID(itemData.item.categoryId)
+            ? itemData.item.categoryId
+            : randomUUID()
         },
         products: [
           {
@@ -948,10 +966,14 @@ export class IFoodProductService {
         console.log('🖼️ [IMAGEM ADICIONADA] ImagePath adicionado ao produto:', imagePath);
       }
 
-      // Se é atualização, adicionar o ID do item
-      if (isUpdate && itemData.item.id) {
+      // Se é atualização, adicionar o ID do item (validando UUID)
+      if (isUpdate && itemData.item.id && isValidUUID(itemData.item.id)) {
         ifoodPayload.item.id = itemData.item.id;
-        console.log(`🔄 [UPDATE] Atualizando item existente: ${itemData.item.id}`);
+        console.log(`🔄 [UPDATE] Atualizando item existente com ID válido: ${itemData.item.id}`);
+      } else if (isUpdate) {
+        // Para atualização sem ID válido, usar o próprio productUuid como ID
+        ifoodPayload.item.id = productUuid;
+        console.log(`🔄 [UPDATE] Usando productUuid como ID do item: ${productUuid}`);
       }
 
       // Adicionar campos opcionais APENAS se existirem

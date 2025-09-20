@@ -112,13 +112,40 @@ export const IfoodApiConfig = () => {
                 tokenUserId: data.user_id,
                 matchesCurrentUser: data.user_id === user.id
                });
-               setConfig({
-                 clientId: data.client_id || '',
-                 clientSecret: data.client_secret || '',
-                 environment: 'sandbox',
-                 webhookUrl: ''
-               });
-               setIsConnected(!!data.access_token && !!data.client_id && !!data.client_secret);
+
+               // Verificar se os dados não estão corrompidos com mensagens de erro
+               const cleanClientId = String(data.client_id || '').trim();
+               const cleanClientSecret = String(data.client_secret || '').trim();
+
+               if (cleanClientId.includes('POST http://') || cleanClientSecret.includes('POST http://') ||
+                   cleanClientId.includes('IfoodApiConfig.tsx') || cleanClientSecret.includes('IfoodApiConfig.tsx')) {
+                 console.error('❌ [DEBUG] Dados corrompidos encontrados no banco, limpando...');
+
+                 // Limpar dados corrompidos do banco
+                 supabase
+                   .from('ifood_tokens')
+                   .delete()
+                   .eq('user_id', user.id)
+                   .then(() => {
+                     console.log('✅ Dados corrompidos removidos do banco');
+                   });
+
+                 setIsConnected(false);
+                 setConfig({
+                   clientId: '',
+                   clientSecret: '',
+                   environment: 'sandbox',
+                   webhookUrl: ''
+                 });
+               } else {
+                 setConfig({
+                   clientId: cleanClientId,
+                   clientSecret: cleanClientSecret,
+                   environment: 'sandbox',
+                   webhookUrl: ''
+                 });
+                 setIsConnected(!!data.access_token && !!cleanClientId && !!cleanClientSecret);
+               }
              } else {
               console.log('❌ [DEBUG] Nenhum token encontrado para o usuário:', user.id);
                setIsConnected(false);
@@ -140,15 +167,47 @@ export const IfoodApiConfig = () => {
   const handleConnect = async (data: ApiConfig) => {
     setIsConnecting(true);
     try {
+      // Garantir que os dados do formulário estão limpos e não são mensagens de erro
+      const cleanClientId = String(data.clientId || '').trim();
+      const cleanClientSecret = String(data.clientSecret || '').trim();
+
+      // Validar se não são mensagens de erro mascaradas como credenciais
+      if (cleanClientId.includes('POST http://') || cleanClientSecret.includes('POST http://') ||
+          cleanClientId.includes('IfoodApiConfig.tsx') || cleanClientSecret.includes('IfoodApiConfig.tsx') ||
+          cleanClientSecret.includes('SUPABASE_SERVICE_KEY') || cleanClientId.includes('SUPABASE_SERVICE_KEY')) {
+        console.error('❌ [DEBUG] Dados corrompidos detectados, limpando estado...');
+
+        // Limpar estado corrompido
+        form.reset({ clientId: '', clientSecret: '' });
+        setConfig({ clientId: '', clientSecret: '', environment: 'sandbox', webhookUrl: '' });
+
+        toast({
+          title: '⚠️ Dados corrompidos detectados',
+          description: 'Por favor, insira suas credenciais novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (!cleanClientId || !cleanClientSecret) {
+        toast({
+          title: '❌ Campos obrigatórios',
+          description: 'Por favor, preencha Client ID e Client Secret.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const payload = {
-        clientId: String(data.clientId),
-        clientSecret: String(data.clientSecret),
+        clientId: cleanClientId,
+        clientSecret: cleanClientSecret,
         user_id: user?.id // Envia o id do usuário logado
       };
-      
-      console.log('🚀 [DEBUG] Enviando dados para serviço Node.js local:');
+
+      console.log('🚀 [DEBUG] Enviando dados limpos para serviço Node.js local:');
       console.log('  - user_id sendo enviado:', user?.id);
-      console.log('  - payload completo:', payload);
+      console.log('  - clientId:', cleanClientId.substring(0, 8) + '...');
+      console.log('  - clientSecret length:', cleanClientSecret.length);
       console.log('  - dados do usuário atual:', {
         id: user?.id,
         email: user?.email,
@@ -156,7 +215,7 @@ export const IfoodApiConfig = () => {
       });
       
       // Connect to local Node.js service only
-      const response = await fetch('http://localhost:8082/token', {
+      const response = await fetch('http://localhost:8085/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -178,11 +237,13 @@ export const IfoodApiConfig = () => {
           title: '✅ Token gerado com sucesso!',
           description: `Token de acesso iFood criado e armazenado. Expira em ${Math.floor(tokenData.expires_in / 3600)} horas.`
         });
-        
+
         // Atualizar status das integrações após token gerado
         setTimeout(() => {
           globalRefreshStatus();
         }, 1000);
+
+        // Token salvo com sucesso - merchants serão sincronizados manualmente
       } else if (response.ok && result.message && result.message.includes('Valid token already exists')) {
         // Token já existe e é válido
         const tokenData = result.data;
@@ -197,11 +258,17 @@ export const IfoodApiConfig = () => {
           title: '✅ Token válido encontrado!',
           description: 'Token de acesso já existe e ainda é válido.'
         });
-        
+
         // Atualizar status das integrações após confirmar token válido
         setTimeout(() => {
           globalRefreshStatus();
         }, 1000);
+
+        // Sincronizar merchants automaticamente quando token válido é encontrado
+        setTimeout(async () => {
+          console.log('🔄 Auto-sincronizando merchants com token existente...');
+          await handleSyncMerchants();
+        }, 2000);
       } else {
         setIsConnected(false);
         const errorMessage = result.error || 'Erro ao gerar token de acesso';

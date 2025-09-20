@@ -43,6 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { FilterBar } from '@/components/ui/filter-bar';
+import { useAuth } from '@/App';
 
 interface PollingStatus {
   isRunning: boolean;
@@ -90,7 +92,7 @@ const IfoodOrdersManager: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingCompleted, setLoadingCompleted] = useState(false);
-  const [selectedMerchant, setSelectedMerchant] = useState<string>('577cb3b1-5845-4fbc-a219-8cd3939cb9ea');
+  const [selectedMerchant, setSelectedMerchant] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [loadingOrderDetails, setLoadingOrderDetails] = useState(false);
@@ -98,7 +100,10 @@ const IfoodOrdersManager: React.FC = () => {
   const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState<string>('');
   const [cancelLoading, setCancelLoading] = useState(false);
-  const userId = 'c1488646-aca8-4220-aacc-00e7ae3d6490'; // Real user ID from database
+
+  // User context
+  const { user } = useAuth();
+  const userId = user?.id || 'c1488646-aca8-4220-aacc-00e7ae3d6490'; // Fallback to default
   const { toast } = useToast();
 
   // iFood cancellation reasons
@@ -120,6 +125,13 @@ const IfoodOrdersManager: React.FC = () => {
 
   const API_BASE = 'http://localhost:8085';
 
+  // Handle merchant selection change
+  const handleMerchantChange = (merchantId: string) => {
+    setSelectedMerchant(merchantId);
+    setOrders([]);
+    setCompletedOrders([]);
+  };
+
   // Fetch polling status
   const fetchPollingStatus = async () => {
     try {
@@ -140,11 +152,17 @@ const IfoodOrdersManager: React.FC = () => {
   // Fetch orders with smooth update
   const fetchOrders = async (isInitialLoad = false) => {
     try {
+      // Skip fetching if no specific merchant is selected
+      if (selectedMerchant === 'all') {
+        setOrders([]);
+        return;
+      }
+
       // Only show loading on initial load
       if (isInitialLoad) {
         setLoading(true);
       }
-      
+
       const response = await fetch(`${API_BASE}/orders/${selectedMerchant}?userId=${userId}`);
       const data = await response.json();
       
@@ -230,6 +248,12 @@ const IfoodOrdersManager: React.FC = () => {
   // Fetch completed orders for merchant
   const fetchCompletedOrders = async () => {
     try {
+      // Skip fetching if no specific merchant is selected
+      if (selectedMerchant === 'all') {
+        setCompletedOrders([]);
+        return;
+      }
+
       setLoadingCompleted(true);
       const response = await fetch(`${API_BASE}/orders/${selectedMerchant}/completed?userId=${userId}`);
       const data = await response.json();
@@ -806,6 +830,15 @@ const IfoodOrdersManager: React.FC = () => {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <FilterBar
+        selectedClient={selectedMerchant}
+        onClientChange={handleMerchantChange}
+        showPeriodFilter={false}
+        showClientFilter={true}
+        onPeriodChange={() => {}}
+      />
+
       {/* Polling Status Card */}
       <Card>
         <CardHeader>
@@ -925,7 +958,13 @@ const IfoodOrdersManager: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {selectedMerchant === 'all' ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Selecione um Merchant</p>
+              <p className="text-sm">Escolha um merchant na barra de filtros para visualizar os pedidos</p>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center h-32">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
             </div>
@@ -1164,7 +1203,13 @@ const IfoodOrdersManager: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {loadingCompleted ? (
+          {selectedMerchant === 'all' ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium">Selecione um Merchant</p>
+              <p className="text-sm">Escolha um merchant na barra de filtros para visualizar os pedidos concluídos</p>
+            </div>
+          ) : loadingCompleted ? (
             <div className="flex items-center justify-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               <span className="ml-2">Carregando pedidos concluídos...</span>

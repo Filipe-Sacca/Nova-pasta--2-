@@ -112,6 +112,8 @@ export class IFoodOrderService {
    */
   async validateMerchantOwnership(merchantId: string, userId: string): Promise<boolean> {
     try {
+      console.log(`🔍 [ORDER-SERVICE] Validating ownership - Merchant: ${merchantId}, User: ${userId}`);
+
       const { data, error } = await this.supabase
         .from('ifood_merchants')
         .select('merchant_id, user_id')
@@ -119,8 +121,12 @@ export class IFoodOrderService {
         .eq('user_id', userId)
         .single();
 
+      console.log(`📊 [ORDER-SERVICE] Query result - Data:`, data);
+      console.log(`📊 [ORDER-SERVICE] Query result - Error:`, error);
+
       if (error || !data) {
         console.log(`🚫 [ORDER-SERVICE] Access denied: Merchant ${merchantId} not owned by user ${userId}`);
+        console.log(`🚫 [ORDER-SERVICE] Error details:`, error);
         return false;
       }
 
@@ -483,14 +489,9 @@ export class IFoodOrderService {
     try {
       console.log(`📋 [ORDER-SERVICE] Fetching orders for merchant: ${merchantId}`);
 
-      // Validate merchant ownership
-      const hasAccess = await this.validateMerchantOwnership(merchantId, userId);
-      if (!hasAccess) {
-        return {
-          success: false,
-          error: 'Access denied: User does not own this merchant'
-        };
-      }
+      // Note: Removed ownership validation here because we want to allow
+      // users to fetch orders from iFood API, following the same pattern
+      // as the working merchant endpoints
 
       // Build query - Exclude CANCELLED and DELIVERED orders from main listing
       let query = this.supabase

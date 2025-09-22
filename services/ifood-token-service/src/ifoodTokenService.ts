@@ -68,12 +68,16 @@ export class IFoodTokenService {
    */
   async generateToken(request: TokenRequest): Promise<ServiceResponse<TokenResponse>> {
     try {
+      console.log('🔥 [DEBUG] generateToken called with request:', request);
       console.log(`🚀 Generating token for client_id: ${request.clientId}`);
 
       const payload = new URLSearchParams({
         grantType: this.GRANT_TYPE,
         clientId: request.clientId,
-        clientSecret: request.clientSecret
+        clientSecret: request.clientSecret,
+        authorizationCode: '',
+        authorizationCodeVerifier: '',
+        refreshToken: ''
       });
 
       const headers = {
@@ -82,6 +86,10 @@ export class IFoodTokenService {
       };
 
       console.log('📡 Making request to iFood API...');
+      console.log('🔥 [DEBUG] URL:', this.IFOOD_TOKEN_URL);
+      console.log('🔥 [DEBUG] Payload:', payload.toString());
+      console.log('🔥 [DEBUG] Headers:', headers);
+
       const response = await axios.post(this.IFOOD_TOKEN_URL, payload, { headers });
 
       if (response.status === 200) {
@@ -147,10 +155,11 @@ export class IFoodTokenService {
         user_id: request.user_id
       };
 
-      // Check if token exists
+      // Check if token exists (buscar por user_id E client_id para evitar duplicatas)
       const { data: existingToken } = await this.supabase
         .from('ifood_tokens')
         .select('*')
+        .eq('user_id', storedToken.user_id)
         .eq('client_id', storedToken.client_id)
         .maybeSingle();
 
@@ -166,6 +175,7 @@ export class IFoodTokenService {
         ({ data, error } = await this.supabase
           .from('ifood_tokens')
           .update(updateData)
+          .eq('user_id', storedToken.user_id)
           .eq('client_id', storedToken.client_id)
           .select()
           .single());

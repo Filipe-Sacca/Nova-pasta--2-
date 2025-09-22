@@ -1473,4 +1473,49 @@ export class IFoodProductService {
     }
   }
 
+  /**
+   * Get product images from database - method required by server.ts
+   */
+  async getProductImages(userId: string, merchantId: string): Promise<ServiceResponse> {
+    try {
+      console.log(`🖼️ [GET IMAGES] Buscando imagens para merchant: ${merchantId}, user: ${userId}`);
+
+      // Buscar produtos com imagens do banco de dados
+      const { data: products, error } = await this.supabase
+        .from('products')
+        .select('item_id, name, imagePath, product_id')
+        .eq('client_id', userId)
+        .eq('merchant_id', merchantId)
+        .not('imagePath', 'is', null);
+
+      if (error) {
+        console.error('❌ Erro ao buscar imagens do banco:', error);
+        throw error;
+      }
+
+      console.log(`📊 [GET IMAGES] Encontradas ${products?.length || 0} imagens no banco`);
+
+      const imageResults = products?.map(product => ({
+        item_id: product.item_id,
+        product_id: product.product_id,
+        name: product.name,
+        imagePath: product.imagePath,
+        imageUrl: product.imagePath // Compatibilidade com frontend
+      })) || [];
+
+      return {
+        success: true,
+        data: imageResults,
+        message: `${imageResults.length} imagens encontradas`
+      };
+
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar product images:', error);
+      return {
+        success: false,
+        error: error.message || 'Erro ao buscar imagens dos produtos'
+      };
+    }
+  }
+
 }

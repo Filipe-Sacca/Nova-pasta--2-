@@ -215,7 +215,7 @@ export const IfoodApiConfig = () => {
       });
       
       // Connect to local Node.js service only
-      const response = await fetch('http://localhost:8085/token', {
+      const response = await fetch('http://localhost:3001/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

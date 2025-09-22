@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/App';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TimePicker } from '@/components/ui/time-picker';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from '@/components/ui/use-toast';
@@ -74,12 +75,14 @@ export default function OpeningHoursManager() {
   const { user } = useAuth();
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [realPeakHours, setRealPeakHours] = useState({ lunchHours: 0, dinnerHours: 0 });
+  const lastUpdateRef = useRef<string>('');
   
   console.log('🍽️ [OPENING HOURS] Componente carregado!');
   const [selectedMerchant, setSelectedMerchant] = useState<Merchant | null>(null);
   const [scheduledPauses, setScheduledPauses] = useState<ScheduledPause[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingPauses, setLoadingPauses] = useState(false);
+  const [syncingPauses, setSyncingPauses] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPauseModalOpen, setIsPauseModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -92,7 +95,13 @@ export default function OpeningHoursManager() {
   const [selectedDay, setSelectedDay] = useState<string>('');
   const [startTime, setStartTime] = useState('08:00');
   const [endTime, setEndTime] = useState('18:00');
-  
+
+  // Time picker modal states
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [showPauseStartTimePicker, setShowPauseStartTimePicker] = useState(false);
+  const [showPauseEndTimePicker, setShowPauseEndTimePicker] = useState(false);
+
   // Pause form state
   const [pauseStartDate, setPauseStartDate] = useState<Date | undefined>(undefined);
   const [pauseStartTime, setPauseStartTime] = useState('');
@@ -103,11 +112,11 @@ export default function OpeningHoursManager() {
   const [cancelingPause, setCancelingPause] = useState<string | null>(null);
 
   // Fetch merchants with opening hours
-  const fetchMerchants = async () => {
+  const fetchMerchants = async (silent = false) => {
     if (!user?.id) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const { data, error } = await supabase
         .from('ifood_merchants')
         .select('merchant_id, name, operating_hours')
@@ -116,9 +125,21 @@ export default function OpeningHoursManager() {
 
       if (error) throw error;
 
-      setMerchants(data || []);
-      if (data && data.length > 0) {
-        setSelectedMerchant(data[0]);
+      // Verificar se os dados realmente mudaram para evitar re-renders desnecessários
+      const newLastUpdate = data?.[0]?.operating_hours?.last_updated || '';
+      const hasChanges = newLastUpdate !== lastUpdateRef.current;
+
+      if (hasChanges || !silent) {
+        setMerchants(data || []);
+        if (data && data.length > 0 && (!selectedMerchant || hasChanges)) {
+          setSelectedMerchant(data[0]);
+        }
+        lastUpdateRef.current = newLastUpdate;
+
+        // Log apenas quando há mudanças reais
+        if (hasChanges && silent) {
+          console.log('🔄 [OPENING HOURS] Dados atualizados silenciosamente:', newLastUpdate);
+        }
       }
     } catch (error) {
       console.error('Error fetching merchants:', error);
@@ -128,7 +149,7 @@ export default function OpeningHoursManager() {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -139,7 +160,7 @@ export default function OpeningHoursManager() {
     try {
       setLoadingPauses(true);
       const response = await fetch(
-        `http://localhost:8085/merchants/${selectedMerchant.merchant_id}/interruptions?userId=${user.id}`
+        `http://localhost:8092/merchants/${selectedMerchant.merchant_id}/interruptions?userId=${user.id}`
       );
       
       if (!response.ok) {
@@ -147,14 +168,14 @@ export default function OpeningHoursManager() {
       }
 
       const result = await response.json();
-      if (result.success && result.data) {
-        setScheduledPauses(result.data.map((pause: any) => ({
+      if (result.success && result.interruptions) {
+        setScheduledPauses(result.interruptions.map((pause: any) => ({
           id: pause.id,
-          startDate: pause.start_date,
-          endDate: pause.end_date,
+          startDate: pause.startDate,
+          endDate: pause.endDate,
           description: pause.description,
           reason: pause.reason,
-          isActive: new Date(pause.end_date) > new Date()
+          isActive: new Date(pause.endDate) > new Date()
         })));
       }
     } catch (error) {
@@ -169,6 +190,82 @@ export default function OpeningHoursManager() {
     }
   };
 
+  // Sync scheduled pauses from iFood API
+  const syncScheduledPausesFromiFood = async (manual = false) => {
+    if (!selectedMerchant?.merchant_id || !user?.id) return;
+
+    try {
+      if (manual) setSyncingPauses(true);
+      console.log('🔄 [SYNC] Sincronizando pausas do iFood API...');
+
+      const response = await fetch(
+        `http://localhost:8092/merchants/${selectedMerchant.merchant_id}/interruptions/sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userId: user.id
+          })
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ [SYNC] Sincronização concluída:', result);
+
+        // Refresh the scheduled pauses list after sync
+        fetchScheduledPauses();
+
+        if (manual) {
+          const messages = [];
+          if (result.new_interruptions > 0) {
+            messages.push(`${result.new_interruptions} nova(s) pausa(s) adicionada(s)`);
+          }
+          if (result.updated_interruptions > 0) {
+            messages.push(`${result.updated_interruptions} pausa(s) atualizada(s)`);
+          }
+          if (result.deleted_interruptions > 0) {
+            messages.push(`${result.deleted_interruptions} pausa(s) removida(s) (deletadas no iFood)`);
+          }
+
+          const description = messages.length > 0
+            ? messages.join(', ') + '.'
+            : 'Nenhuma alteração encontrada.';
+
+          toast({
+            title: "Sincronização bidirecional concluída",
+            description: description,
+          });
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('❌ [SYNC] Erro na sincronização:', errorText);
+
+        if (manual) {
+          toast({
+            title: "Erro na sincronização",
+            description: "Falha ao sincronizar pausas do iFood.",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      console.error('❌ [SYNC] Erro ao sincronizar pausas:', error);
+
+      if (manual) {
+        toast({
+          title: "Erro na sincronização",
+          description: "Falha ao conectar com o iFood.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      if (manual) setSyncingPauses(false);
+    }
+  };
+
   // Cancel/Remove scheduled pause
   const handleCancelPause = async (pauseId: string) => {
     if (!selectedMerchant?.merchant_id || !user?.id) return;
@@ -177,7 +274,7 @@ export default function OpeningHoursManager() {
       setCancelingPause(pauseId);
       
       const response = await fetch(
-        `http://localhost:8085/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
+        `http://localhost:8092/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
         {
           method: 'DELETE',
           headers: {
@@ -196,8 +293,13 @@ export default function OpeningHoursManager() {
           title: "Sucesso",
           description: "Pausa programada cancelada com sucesso.",
         });
-        
-        // Refresh the list
+
+        // Remove immediately from local state for instant UI update
+        setScheduledPauses(prevPauses =>
+          prevPauses.filter(pause => pause.id !== pauseId)
+        );
+
+        // Also refresh the list to ensure consistency
         setTimeout(() => {
           fetchScheduledPauses();
         }, 1000);
@@ -315,21 +417,26 @@ export default function OpeningHoursManager() {
     fetchMerchants();
     calculateRealPeakHours();
     
-    // Iniciar polling visual no frontend para debug
+    // Polling silencioso para atualizações suaves
     const pollingInterval = setInterval(() => {
-      console.log('\n🔄 ================== FRONTEND POLLING CHECK ==================');
-      console.log('⏰ Timestamp:', new Date().toISOString());
-      console.log('🎯 Verificando se dados foram atualizados no banco...');
-      fetchMerchants(); // Atualizar lista de horários também
+      fetchMerchants(true); // Silent update - não mostra loading
       calculateRealPeakHours();
-      console.log('✅ ================== FRONTEND POLLING CHECK CONCLUÍDO ==================\n');
-    }, 10000); // A cada 10 segundos
+    }, 30000); // A cada 30 segundos (menos frequente)
 
     return () => clearInterval(pollingInterval);
   }, [user?.id]);
 
   useEffect(() => {
     fetchScheduledPauses();
+
+    // Polling para sincronizar pausas programadas do iFood
+    const pausesSyncInterval = setInterval(() => {
+      if (selectedMerchant?.merchant_id && user?.id) {
+        syncScheduledPausesFromiFood();
+      }
+    }, 60000); // A cada 60 segundos (1 minuto)
+
+    return () => clearInterval(pausesSyncInterval);
   }, [selectedMerchant?.merchant_id, user?.id]);
 
   // Calculate total weekly hours
@@ -421,7 +528,7 @@ export default function OpeningHoursManager() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8085/merchants/${selectedMerchant.merchant_id}/interruptions`, {
+      const response = await fetch(`http://localhost:8092/merchants/${selectedMerchant.merchant_id}/interruptions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -492,7 +599,7 @@ export default function OpeningHoursManager() {
     try {
       setDeletingDay(dayToDelete);
 
-      const response = await fetch(`http://localhost:8085/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
+      const response = await fetch(`http://localhost:8092/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -519,10 +626,11 @@ export default function OpeningHoursManager() {
       // Close modal and refresh data
       setIsDeleteModalOpen(false);
       setDayToDelete('');
-      
+
+      // Atualização imediata e suave após operação
       setTimeout(() => {
-        fetchMerchants();
-      }, 5000);
+        fetchMerchants(true); // Silent update
+      }, 2000);
 
     } catch (error: any) {
       console.error('Error deleting opening hours:', error);
@@ -550,7 +658,7 @@ export default function OpeningHoursManager() {
     try {
       setUpdating(true);
 
-      const response = await fetch(`http://localhost:8085/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
+      const response = await fetch(`http://localhost:8092/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -579,11 +687,11 @@ export default function OpeningHoursManager() {
       setSelectedDay('');
       setStartTime('08:00');
       setEndTime('18:00');
-      
-      // Refresh merchants data after a brief delay
+
+      // Atualização imediata e suave após operação
       setTimeout(() => {
-        fetchMerchants();
-      }, 5000);
+        fetchMerchants(true); // Silent update
+      }, 2000);
 
     } catch (error: any) {
       console.error('Error updating opening hours:', error);
@@ -948,7 +1056,16 @@ export default function OpeningHoursManager() {
                   >
                     Nova Pausa Programada
                   </Button>
-                  <Button 
+                  <Button
+                    onClick={() => syncScheduledPausesFromiFood(true)}
+                    variant="outline"
+                    disabled={syncingPauses}
+                    className="flex items-center space-x-2 bg-green-50 hover:bg-green-100 border-green-300"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${syncingPauses ? 'animate-spin' : ''}`} />
+                    <span>Sincronizar iFood</span>
+                  </Button>
+                  <Button
                     onClick={fetchScheduledPauses}
                     variant="outline"
                     disabled={loadingPauses}
@@ -1089,19 +1206,23 @@ export default function OpeningHoursManager() {
                   <label htmlFor="custom-time" className="text-sm">
                     Abrir a loja das
                   </label>
-                  <Input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-24"
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowStartTimePicker(true)}
+                    className="w-24 h-8 text-sm"
+                  >
+                    {startTime}
+                  </Button>
                   <span className="text-sm">até</span>
-                  <Input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-24"
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowEndTimePicker(true)}
+                    className="w-24 h-8 text-sm"
+                  >
+                    {endTime}
+                  </Button>
                   
                   {/* Simple trash icon for existing shifts */}
                   {selectedDay && currentShifts.find(s => s.dayOfWeek === selectedDay) && (
@@ -1205,12 +1326,15 @@ export default function OpeningHoursManager() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pauseStartTime">Hora</Label>
-                  <Input
-                    id="pauseStartTime"
-                    type="time"
-                    value={pauseStartTime}
-                    onChange={(e) => setPauseStartTime(e.target.value)}
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowPauseStartTimePicker(true)}
+                    className="w-full h-10 justify-start text-sm"
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    {pauseStartTime || 'Selecionar hora'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1248,12 +1372,15 @@ export default function OpeningHoursManager() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="pauseEndTime">Hora</Label>
-                  <Input
-                    id="pauseEndTime"
-                    type="time"
-                    value={pauseEndTime}
-                    onChange={(e) => setPauseEndTime(e.target.value)}
-                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowPauseEndTimePicker(true)}
+                    className="w-full h-10 justify-start text-sm"
+                  >
+                    <Clock className="h-4 w-4 mr-2" />
+                    {pauseEndTime || 'Selecionar hora'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1369,6 +1496,39 @@ export default function OpeningHoursManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Time Picker Modals */}
+      <TimePicker
+        isOpen={showStartTimePicker}
+        onClose={() => setShowStartTimePicker(false)}
+        onTimeSelect={setStartTime}
+        title="Selecionar Horário de Abertura"
+        initialTime={startTime}
+      />
+
+      <TimePicker
+        isOpen={showEndTimePicker}
+        onClose={() => setShowEndTimePicker(false)}
+        onTimeSelect={setEndTime}
+        title="Selecionar Horário de Fechamento"
+        initialTime={endTime}
+      />
+
+      <TimePicker
+        isOpen={showPauseStartTimePicker}
+        onClose={() => setShowPauseStartTimePicker(false)}
+        onTimeSelect={setPauseStartTime}
+        title="Início da Pausa"
+        initialTime={pauseStartTime}
+      />
+
+      <TimePicker
+        isOpen={showPauseEndTimePicker}
+        onClose={() => setShowPauseEndTimePicker(false)}
+        onTimeSelect={setPauseEndTime}
+        title="Final da Pausa"
+        initialTime={pauseEndTime}
+      />
     </div>
   );
 }

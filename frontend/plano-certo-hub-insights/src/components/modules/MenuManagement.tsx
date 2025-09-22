@@ -170,7 +170,7 @@ export const MenuManagement = () => {
       // ETAPA 2: Tentar buscar da tabela product_images as imagens que não foram encontradas
       console.log('📋 ETAPA 2: Tentando buscar da tabela product_images...');
       try {
-        const response = await fetch(`http://localhost:8085/merchants/${merchantId}/product-images?user_id=${userId}`);
+        const response = await fetch(`http://localhost:8092/merchants/${merchantId}/product-images?user_id=${userId}`);
         if (response.ok) {
           const data = await response.json();
           console.log('📊 Dados da tabela product_images:', data);
@@ -200,7 +200,7 @@ export const MenuManagement = () => {
 
         // Vamos tentar uma abordagem diferente: usar um endpoint que sabemos que existe
         try {
-          const response = await fetch(`http://localhost:8085/products?user_id=${userId}&with_images=true`);
+          const response = await fetch(`http://localhost:8092/products?user_id=${userId}&with_images=true`);
           if (response.ok) {
             const data = await response.json();
             console.log('📊 Dados de produtos com imagens:', data);
@@ -369,7 +369,7 @@ export const MenuManagement = () => {
     try {
       const userId = getCurrentUserId();
       const accessToken = getIfoodAccessToken();
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/categories?user_id=${userId}`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/categories?user_id=${userId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -406,7 +406,7 @@ export const MenuManagement = () => {
       const syncParam = forceSync || categoryItems.length === 0 ? '&sync=true' : '';
       
       const response = await fetch(
-        `http://localhost:8085/merchants/${selectedClient}/items?user_id=${userId}&category_id=${categoryId}${syncParam}`, 
+        `http://localhost:8092/merchants/${selectedClient}/items?user_id=${userId}&category_id=${categoryId}${syncParam}`, 
         {
           method: 'GET',
           headers: {
@@ -527,7 +527,7 @@ export const MenuManagement = () => {
 
       console.log('✅ Token obtido, fazendo requisição para criar categoria...');
 
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/categories`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -655,7 +655,7 @@ Renove o token na página de Tokens do iFood`);
           reader.readAsDataURL(imageFile);
         });
 
-        const uploadResponse = await fetch(`http://localhost:8085/merchants/${merchantId}/image/upload`, {
+        const uploadResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/image/upload`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -740,7 +740,7 @@ Renove o token na página de Tokens do iFood`);
       console.log('👤 User ID:', userId);
       console.log('🏪 Merchant ID:', merchantId);
 
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/items`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -823,7 +823,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/items/price`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items/price`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -860,7 +860,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/items/status`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -910,7 +910,7 @@ Renove o token na página de Tokens do iFood`);
       // ETAPA 1: Upload da imagem para iFood e armazenamento do path
       toast.loading('📸 Fazendo upload da imagem para iFood...');
 
-      const uploadResponse = await fetch(`http://localhost:8085/merchants/${merchantId}/products/${productId}/upload-image`, {
+      const uploadResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -932,7 +932,7 @@ Renove o token na página de Tokens do iFood`);
       toast.loading('🔄 Atualizando produto com a imagem...');
 
       // ETAPA 2: Atualizar o produto usando o path da imagem armazenado
-      const updateResponse = await fetch(`http://localhost:8085/merchants/${merchantId}/products/${productId}`, {
+      const updateResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/products/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -984,7 +984,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8085/merchants/${merchantId}/images`, {
+      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/images`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1684,7 +1684,7 @@ Renove o token na página de Tokens do iFood`);
                           setIsLoadingCategories(true);
                           try {
                             const userId = getCurrentUserId();
-                            const response = await fetch(`http://localhost:8085/merchants/${selectedClient}/categories/sync`, {
+                            const response = await fetch(`http://localhost:8092/merchants/${selectedClient}/categories/sync`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ user_id: userId })
@@ -3092,7 +3092,7 @@ Renove o token na página de Tokens do iFood`);
                     user_id: getCurrentUserId()
                   };
 
-                  const response = await fetch(`http://localhost:8085/merchants/${selectedClient}/items`, {
+                  const response = await fetch(`http://localhost:8092/merchants/${selectedClient}/items`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',

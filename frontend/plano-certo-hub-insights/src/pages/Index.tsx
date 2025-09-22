@@ -5,9 +5,6 @@ import { Sidebar } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import { MenuManagement } from '@/components/modules/MenuManagement';
 import { IfoodApiConfig } from '@/components/modules/IfoodApiConfig';
-import IfoodOrdersManager from '@/components/modules/IfoodOrdersManager';
-import IfoodReviewsManager from '@/components/modules/IfoodReviewsManager';
-import { IfoodShippingManager } from '@/components/modules/IfoodShippingManager';
 import { StoreMonitoring } from '@/components/modules/StoreMonitoring';
 import OpeningHoursManager from '@/components/modules/OpeningHoursManager';
 import { DateRange } from 'react-day-picker';
@@ -23,22 +20,10 @@ export default function Index() {
   const [selectedClient, setSelectedClient] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('30d');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [highlightOrder, setHighlightOrder] = useState<string | null>(null);
   
   // Verificar integrações ativas do usuário
   const { data: integrationStatus, isLoading: isCheckingIntegration } = useIntegrationCheck(user?.id);
 
-  // Handle navigation from Orders to Shipping
-  useEffect(() => {
-    if (location.state?.activeModule === 'shipping') {
-      setActiveModule('ifood-shipping');
-      if (location.state?.highlightOrder) {
-        setHighlightOrder(location.state.highlightOrder);
-      }
-      // Clear navigation state
-      window.history.replaceState({}, document.title);
-    }
-  }, [location]);
 
   // Mostrar notificações sobre o status das integrações
   useEffect(() => {
@@ -113,31 +98,6 @@ export default function Index() {
         return <MenuManagement />;
       case 'ifood-api':
         return <IfoodApiConfig />;
-      case 'ifood-orders':
-        return <IfoodOrdersManager />;
-      case 'ifood-reviews':
-        return integrationStatus?.ifoodMerchant?.merchant_id && user?.id ? (
-          <IfoodReviewsManager 
-            merchantId={integrationStatus.ifoodMerchant.merchant_id} 
-            userId={user.id} 
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Configure a integração com o iFood para visualizar avaliações</p>
-          </div>
-        );
-      case 'ifood-shipping':
-        return integrationStatus?.ifoodMerchant?.merchant_id && user?.id ? (
-          <IfoodShippingManager 
-            merchantId={integrationStatus.ifoodMerchant.merchant_id}
-            highlightOrder={highlightOrder} 
-            userId={user.id} 
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Configure a integração com o iFood para gerenciar entregas</p>
-          </div>
-        );
       case 'store-monitoring':
         return <StoreMonitoring />;
       case 'opening-hours':

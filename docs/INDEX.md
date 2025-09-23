@@ -6,7 +6,7 @@
 - [SETUP_GUIDE.md](./SETUP_GUIDE.md) - Guia de instalação e configuração
 
 ## 📦 Módulos do Sistema
-Documentação detalhada de cada módulo principal:
+Documentação detalhada de cada módulo implementado:
 
 ### [/modules/merchant/](./modules/merchant/)
 - Gestão do estabelecimento
@@ -23,26 +23,11 @@ Documentação detalhada de cada módulo principal:
 - Processamento e deduplicação
 - Handlers especializados
 
-### [/modules/order/](./modules/order/)
-- Ciclo completo de pedidos
-- Gestão de status
-- Sistema de pagamentos
-
-### [/modules/shipping/](./modules/shipping/)
-- Rastreamento de entregas
-- Mapas e analytics geográfico
-- Safe Delivery
-
-### [/modules/review/](./modules/review/)
-- Gestão de avaliações
-- Sistema de respostas
-- Análise de sentimento
-
 ## 🚀 Homologação iFood
 Documentação do processo de homologação:
 
 ### [/homologation/](./homologation/)
-- [HOMOLOGACAO_IFOOD_STATUS.md](./homologation/HOMOLOGACAO_IFOOD_STATUS.md) - **Documento único consolidado** com status real de implementação (92% completo)
+- Status de implementação dos módulos core do sistema
 
 ## 🔧 Implementação Técnica
 Guias técnicos e implementações específicas:
@@ -70,10 +55,7 @@ docs/
 ├── modules/                 # Módulos principais
 │   ├── merchant/
 │   ├── catalog/
-│   ├── events/
-│   ├── order/
-│   ├── shipping/
-│   └── review/
+│   └── events/
 │
 ├── homologation/           # Processo de homologação
 │   └── HOMOLOGACAO_IFOOD_STATUS.md  # Documento único consolidado

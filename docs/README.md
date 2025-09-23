@@ -6,12 +6,12 @@
 
 ### ✨ Principais Funcionalidades
 
-- **📦 Gestão Completa de Pedidos** - Ciclo completo desde recebimento até entrega
-- **🚚 Rastreamento de Entregas** - Monitoramento em tempo real com mapas interativos
-- **⭐ Gerenciamento de Avaliações** - Sistema de respostas e análise de sentimento
-- **📊 Analytics Avançado** - Heatmaps de vendas e análise geográfica
-- **🔄 Sincronização Automática** - Polling de alta precisão (30s) com o iFood
-- **🔐 Autenticação Segura** - Sistema completo com Supabase Auth
+- **🏪 Gestão Completa de Merchants** - Controle de estabelecimentos e horários de funcionamento
+- **📚 Gerenciamento de Catálogo** - Sincronização de produtos, preços e imagens
+- **🔄 Sistema de Eventos** - Polling de alta precisão (30s) com o iFood
+- **🔐 Autenticação Segura** - Gestão automática de tokens OAuth2
+- **📊 Analytics Integrado** - Monitoramento de sincronização e status
+- **⚡ API Modular** - Arquitetura limpa com rotas especializadas
 
 ## 🏗️ Arquitetura do Sistema
 
@@ -19,7 +19,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     Frontend (React/TypeScript)              │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
-│  │ Orders   │ │ Shipping │ │ Reviews  │ │Analytics │      │
+│  │Merchants │ │ Catalog  │ │ Events   │ │Analytics │      │
 │  │ Manager  │ │ Manager  │ │ Manager  │ │  Module  │      │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
 └─────────────────────────┬───────────────────────────────────┘
@@ -35,18 +35,38 @@
 ┌─────────────────────────┴───────────────────────────────────┐
 │                        Supabase                              │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
-│  │  Orders  │ │ Shipping │ │ Reviews  │ │Analytics │      │
+│  │Merchants │ │ Products │ │ Events   │ │Analytics │      │
 │  │  Tables  │ │  Tables  │ │  Tables  │ │  Tables  │      │
 │  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
 └─────────────────────────┬───────────────────────────────────┘
                           │ OAuth2/API
 ┌─────────────────────────┴───────────────────────────────────┐
 │                        iFood API                             │
-│  Events • Orders • Virtual Bag • Reviews • Shipping         │
+│  Events • Merchants • Products • Catalog • Token Management │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Módulos Implementados
+## 🚀 Módulos Core Implementados
+
+### 🔐 Token Management
+- Renovação automática de tokens OAuth2
+- Cache inteligente e retry automático
+- Scheduler robusto para manutenção
+
+### 🏪 Merchant Management
+- Gestão de estabelecimentos
+- Controle de horários de funcionamento
+- Status e configurações
+
+### 📚 Catalog Management
+- Sincronização de produtos e preços
+- Upload e gestão de imagens
+- Categorias e modificadores
+
+### 🔄 Events System
+- Polling de eventos em tempo real (30s)
+- Processamento e deduplicação
+- Sistema de acknowledgment
 
 ### Frontend Modules
 

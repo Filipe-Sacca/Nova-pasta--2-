@@ -125,11 +125,14 @@ export class ProductSyncScheduler {
       // Sync ALL products for this merchant using the complete sync endpoint
       try {
         // Call the endpoint that fetches ALL product data from iFood API and updates database
-        const response = await fetch(`${this.baseUrl}/merchants/${merchant.merchant_id}/items?user_id=${merchant.user_id}&sync=true`, {
-          method: 'GET',
+        const response = await fetch(`${this.baseUrl}/merchants/${merchant.merchant_id}/products/smart-sync`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({
+            user_id: merchant.user_id
+          })
         });
 
         if (response.ok) {
@@ -183,11 +186,14 @@ export class ProductSyncScheduler {
 
       // Use the complete sync endpoint that fetches ALL product data from iFood
       try {
-        const response = await fetch(`${this.baseUrl}/merchants/${merchantId}/items?user_id=${userId}&sync=true`, {
-          method: 'GET',
+        const response = await fetch(`${this.baseUrl}/merchants/${merchantId}/products/smart-sync`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          body: JSON.stringify({
+            user_id: userId
+          })
         });
 
         if (response.ok) {

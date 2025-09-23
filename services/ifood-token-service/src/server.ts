@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { IFoodTokenService, getTokenForUser } from './ifoodTokenService';
 import { IFoodMerchantService } from './ifoodMerchantService';
 import { IFoodProductService } from './ifoodProductService';
+import { IFoodMerchantStatusService } from './ifoodMerchantStatusService';
 import IFoodPollingService from './ifoodPollingService';
 import IFoodEventService from './ifoodEventService';
 import { tokenScheduler } from './tokenScheduler';
@@ -24,7 +25,7 @@ import { TokenRequest } from './types';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8086;
+const PORT = process.env.PORT || 8092;
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL!;
@@ -113,6 +114,7 @@ app.get('/', (req, res) => {
       merchantDetail: 'GET /merchants/:merchantId',
       // Product Management
       products: 'POST /products',
+      getProducts: 'GET /products',
       createCategory: 'POST /merchants/:merchantId/categories',
       getCategories: 'GET /merchants/:merchantId/categories',
       productSyncStart: 'POST /products/sync/scheduler/start',
@@ -522,6 +524,51 @@ app.post('/products', async (req, res) => {
   }
 });
 
+// Get all products for a user
+app.get('/products', async (req, res) => {
+  try {
+    const { user_id, with_images } = req.query;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing user_id parameter'
+      });
+    }
+
+    console.log(`📦 Fetching products for user: ${user_id}`);
+
+    // Get products from database
+    const { data: products, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('client_id', user_id)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Error fetching products:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch products: ' + error.message
+      });
+    }
+
+    console.log(`✅ Found ${products?.length || 0} products for user ${user_id}`);
+
+    res.json({
+      success: true,
+      products: products || [],
+      total: products?.length || 0
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching products:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch products: ' + error.message
+    });
+  }
+});
+
 // Create category
 app.post('/merchants/:merchantId/categories', async (req, res) => {
   try {
@@ -602,6 +649,347 @@ app.post('/merchants/:merchantId/products/sync', async (req, res) => {
   }
 });
 
+// Smart product sync with comparison and auto-update
+app.post('/merchants/:merchantId/products/smart-sync', async (req, res) => {
+  try {
+    const { merchantId } = req.params;
+    const { user_id } = req.body;
+
+    console.log(`🧠 Smart product sync for merchant: ${merchantId}`);
+    console.log(`👤 User ID: ${user_id}`);
+
+    // Initialize services
+    const productService = new IFoodProductService(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // STEP 1: Get products from iFood API
+    console.log('🔍 [STEP 1] Fetching products from iFood API...');
+
+    // Get token first
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('ifood_tokens')
+      .select('access_token')
+      .eq('user_id', user_id)
+      .single();
+
+    if (tokenError || !tokenData) {
+      throw new Error('No valid token found for user');
+    }
+
+    // Get categories first
+    console.log('🔍 [STEP 1A] Fetching categories from ifood_categories table...');
+
+    const { data: categoriesData, error: categoriesError } = await supabase
+      .from('ifood_categories')
+      .select('category_id, name, user_id')
+      .eq('merchant_id', merchantId);
+
+    console.log('🔍 [DEBUG] Categories query result:', categoriesData);
+    console.log('🔍 [DEBUG] Categories error:', categoriesError);
+    console.log('🔍 [DEBUG] Looking for user_id:', user_id);
+
+    // Initialize variables
+    let ifoodResult;
+    let allIfoodProducts = [];
+    let totalProducts = 0;
+
+    if (categoriesError || !categoriesData || categoriesData.length === 0) {
+      console.log('📦 No categories found, skipping iFood fetch and working with existing database products...');
+
+      // When no categories are found, we'll just work with existing database products
+      // and skip the iFood API comparison since we can't fetch from iFood without categories
+      ifoodResult = {
+        success: true,
+        total_products: 0,
+        new_products: 0,
+        updated_products: 0,
+        message: 'No categories found - working with existing database products only'
+      };
+
+      console.log(`⚠️ [STEP 1] No iFood data to compare - categories table is empty`);
+    } else {
+      console.log(`📋 [STEP 1A] Found ${categoriesData.length} categories`);
+
+      // STEP 1A.5: Get catalog ID first
+      console.log('🔍 [STEP 1A.5] Fetching catalog ID...');
+      let catalogId: string;
+
+      try {
+        const catalogsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs`;
+        const catalogsResponse = await fetch(catalogsUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (catalogsResponse.ok) {
+          const catalogsData = await catalogsResponse.json();
+          if (catalogsData && catalogsData.length > 0) {
+            catalogId = catalogsData[0].catalogId || catalogsData[0].id;
+            console.log(`✅ [STEP 1A.5] Catalog ID found: ${catalogId}`);
+          } else {
+            throw new Error('No catalogs found');
+          }
+        } else {
+          throw new Error(`Failed to fetch catalogs: ${catalogsResponse.status}`);
+        }
+      } catch (catalogError: any) {
+        console.error('❌ [STEP 1A.5] Error fetching catalog ID:', catalogError.message);
+        throw new Error('Cannot proceed without catalog ID');
+      }
+
+      for (const category of categoriesData) {
+        console.log(`🔍 [STEP 1B] Fetching products from category: ${category.name}`);
+
+        try {
+          // Use the correct iFood endpoint with catalog ID: GET /merchants/{merchantId}/catalogs/{catalogId}/categories/{categoryId}
+          const itemsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories/${category.category_id}`;
+
+          // 🔥 [JSON REQUEST LOG] - Detailed logging for iFood API request
+          console.log(`🔥 [JSON REQUEST] URL: ${itemsUrl}`);
+          console.log(`🔥 [JSON REQUEST] Method: GET`);
+          console.log(`🔥 [JSON REQUEST] Headers:`, {
+            'Authorization': `Bearer ${tokenData.access_token.substring(0, 20)}...`,
+            'Content-Type': 'application/json'
+          });
+          console.log(`🔥 [JSON REQUEST] Full Request Details:`, {
+            url: itemsUrl,
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tokenData.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const itemsResponse = await fetch(itemsUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${tokenData.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          // 🔥 [JSON RESPONSE LOG] - Detailed logging for iFood API response
+          console.log(`🔥 [JSON RESPONSE] Status: ${itemsResponse.status}`);
+          console.log(`🔥 [JSON RESPONSE] Status Text: ${itemsResponse.statusText}`);
+          console.log(`🔥 [JSON RESPONSE] Headers:`, Object.fromEntries(itemsResponse.headers.entries()));
+
+          if (itemsResponse.ok) {
+            const itemsData = await itemsResponse.json();
+
+            // 🔥 [JSON RESPONSE DATA] - Complete response JSON from iFood API
+            console.log(`🔥 [JSON RESPONSE DATA] Complete Response from iFood API for ${category.name}:`);
+            console.log(JSON.stringify(itemsData, null, 2));
+
+            // Extract products from the correct structure: response has 'items' and 'products' arrays
+            const items = itemsData?.items || [];
+            const products = itemsData?.products || [];
+
+            console.log(`✅ Category ${category.name}: ${items.length} items, ${products.length} products`);
+
+            // 🔥 [PIZZA CALABRESA DEBUG] - Special logging for Pizza Calabresa
+            if (category.name === 'Pizzas Salgadas') {
+              const pizzaCalabresa = items.find((item: any) => item.id === 'b62ec350-be44-480f-81ce-3e9e9e8d0842');
+              if (pizzaCalabresa) {
+                console.log(`🔥 [CALABRESA JSON] Found Pizza Calabresa in iFood response:`);
+                console.log(JSON.stringify(pizzaCalabresa, null, 2));
+              } else {
+                console.log(`🔥 [CALABRESA JSON] Pizza Calabresa NOT found in items array`);
+                console.log(`🔥 [CALABRESA JSON] Available items in ${category.name}:`);
+                items.forEach((item: any) => {
+                  console.log(`  - ID: ${item.id}, Name: ${item.name || 'N/A'}, Status: ${item.status}`);
+                });
+              }
+            }
+
+            // Process items (these are the menu items with status, price, etc.)
+            if (items && Array.isArray(items) && items.length > 0) {
+              // Map items with their corresponding products
+              const itemsWithProductData = items.map((item: any) => {
+                const correspondingProduct = products.find((p: any) => p.id === item.productId);
+                return {
+                  id: item.id,
+                  name: item.name || correspondingProduct?.name || 'Unknown Product',
+                  description: item.description || correspondingProduct?.description || '',
+                  status: item.status,
+                  price: item.price,
+                  productId: item.productId,
+                  imagePath: item.imagePath || correspondingProduct?.imagePath || '',
+                  categoryId: item.categoryId,
+                  categoryName: category.name
+                };
+              });
+
+              allIfoodProducts.push(...itemsWithProductData);
+              totalProducts += itemsWithProductData.length;
+
+              console.log(`📦 Processed ${itemsWithProductData.length} products from category ${category.name}`);
+            }
+          } else {
+            const errorText = await itemsResponse.text();
+            console.log(`⚠️ Failed to fetch items for category ${category.name}: ${itemsResponse.status}`);
+            console.log(`🔥 [DEBUG] Error response:`, errorText);
+          }
+
+        } catch (error) {
+          console.error(`❌ Error fetching category ${category.name}:`, error);
+        }
+      }
+
+      console.log(`✅ [STEP 1] Fetched ${totalProducts} products from iFood using correct endpoint`);
+
+      // Create ifoodResult object for category-based sync
+      ifoodResult = {
+        success: true,
+        total_products: totalProducts,
+        new_products: 0,
+        updated_products: 0,
+        data: allIfoodProducts
+      };
+    }
+
+    // STEP 2: Get products from database
+    console.log('🗄️ [STEP 2] Fetching products from database...');
+
+    const { data: dbProducts, error: dbError } = await supabase
+      .from('products')
+      .select('*')
+      .eq('merchant_id', merchantId)
+      .eq('user_id', user_id);
+
+    if (dbError) {
+      throw new Error('Failed to fetch products from database: ' + dbError.message);
+    }
+
+    console.log(`📊 [STEP 2] Found ${dbProducts?.length || 0} products in database`);
+
+    // STEP 3: Compare and update - iFood is source of truth
+    console.log('🔍 [STEP 3] Comparing iFood vs Database - iFood is source of truth...');
+
+    let updatedProducts = 0;
+    let changesDetected = [];
+
+    // Create a map of iFood products for easy lookup using item.id
+    const ifoodProductsMap = new Map();
+    allIfoodProducts.forEach(ifoodProduct => {
+      ifoodProductsMap.set(ifoodProduct.id, ifoodProduct);
+    });
+
+    // Compare each database product with iFood data
+    console.log('🔍 [DEBUG] Starting product comparison...');
+    console.log(`🔍 [DEBUG] Database products: ${dbProducts?.length || 0}`);
+    console.log(`🔍 [DEBUG] iFood products in map: ${ifoodProductsMap.size}`);
+
+    for (const dbProduct of dbProducts || []) {
+      console.log(`🔍 [DEBUG] Checking DB product: ${dbProduct.name} (item_id: ${dbProduct.item_id})`);
+
+      // Use item_id to match with iFood item.id
+      const ifoodProduct = ifoodProductsMap.get(dbProduct.item_id);
+
+      if (!ifoodProduct) {
+        console.log(`⚠️ [DEBUG] No iFood match found for DB product ${dbProduct.name} with item_id ${dbProduct.item_id}`);
+        console.log(`🔍 [DEBUG] Available iFood IDs: ${Array.from(ifoodProductsMap.keys()).slice(0, 5).join(', ')}...`);
+      }
+
+      if (ifoodProduct) {
+        console.log(`✅ [DEBUG] Found match for ${dbProduct.name}: ${ifoodProduct.name} (status: ${ifoodProduct.status})`);
+        let needsUpdate = false;
+        const updates = {};
+
+        // Compare status (is_active) - Convert iFood AVAILABLE/UNAVAILABLE to boolean
+        const ifoodStatus = ifoodProduct.status === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE';
+        if (dbProduct.is_active !== ifoodStatus) {
+          console.log(`📊 Product ${dbProduct.name}: Status changed from ${dbProduct.is_active} to ${ifoodStatus}`);
+          updates.is_active = ifoodStatus;
+          needsUpdate = true;
+        }
+
+        // Compare price
+        const ifoodPrice = ifoodProduct.price?.value || 0;
+        if (dbProduct.price !== ifoodPrice) {
+          console.log(`💰 Product ${dbProduct.name}: Price changed from R$ ${dbProduct.price} to R$ ${ifoodPrice}`);
+          updates.price = ifoodPrice;
+          needsUpdate = true;
+        }
+
+        // Compare name
+        if (dbProduct.name !== ifoodProduct.name) {
+          console.log(`📝 Product ${dbProduct.name}: Name changed to ${ifoodProduct.name}`);
+          updates.name = ifoodProduct.name;
+          needsUpdate = true;
+        }
+
+        // Update if needed
+        if (needsUpdate) {
+          try {
+            const { error: updateError } = await supabase
+              .from('products')
+              .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', dbProduct.id);
+
+            if (updateError) {
+              console.error(`❌ Failed to update product ${dbProduct.name}:`, updateError);
+            } else {
+              console.log(`✅ Updated product: ${dbProduct.name}`);
+              updatedProducts++;
+              changesDetected.push({
+                product_id: dbProduct.id,
+                name: updates.name || dbProduct.name,
+                changes: updates
+              });
+            }
+          } catch (updateError) {
+            console.error(`❌ Error updating product ${dbProduct.name}:`, updateError);
+          }
+        }
+      }
+    }
+
+    console.log(`✅ [STEP 3] Comparison complete - ${updatedProducts} products updated`);
+
+    // Update ifoodResult with the comparison results
+    if (ifoodResult) {
+      ifoodResult.updated_products = updatedProducts;
+      ifoodResult.changes_detected = changesDetected;
+    }
+
+    // STEP 4: Return comprehensive results
+    const result = {
+      success: true,
+      message: 'Smart sync completed successfully',
+      merchant_id: merchantId,
+      total_products: ifoodResult.total_products,
+      new_products: ifoodResult.new_products,
+      updated_products: ifoodResult.updated_products,
+      changes_detected: changesDetected.length,
+      sync_timestamp: new Date().toISOString(),
+      details: {
+        ifood_api_result: ifoodResult,
+        database_products_count: dbProducts?.length || 0,
+        changes: changesDetected
+      }
+    };
+
+    console.log('🎉 [SMART SYNC] Completed successfully!');
+    console.log(`📊 [SUMMARY] Total: ${result.total_products}, New: ${result.new_products}, Updated: ${result.updated_products}`);
+
+    res.json(result);
+
+  } catch (error: any) {
+    console.error('❌ Error in smart product sync:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed smart product sync: ' + error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // ============================================================================
 // 📦 PRODUCT SYNC SCHEDULER ENDPOINTS
 // ============================================================================
@@ -611,7 +999,7 @@ app.post('/products/sync/scheduler/start', async (req, res) => {
   try {
     console.log('🟢 Starting product sync scheduler...');
 
-    productSyncScheduler.start();
+    productSyncScheduler.start(0.5); // 30 segundos
 
     res.json({
       success: true,
@@ -844,6 +1232,186 @@ app.post('/merchants/:merchantId/image/upload', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed legacy image upload: ' + error.message
+    });
+  }
+});
+
+// Update item/product status endpoint
+app.patch('/merchants/:merchantId/items/status', async (req, res) => {
+  try {
+    const { merchantId } = req.params;
+    const { user_id, items, itemId, status } = req.body;
+
+    console.log(`🔄 Updating item status for merchant: ${merchantId}`);
+    console.log(`📦 [REQUEST DETAILS] Full request body:`, JSON.stringify(req.body, null, 2));
+    console.log(`📦 [REQUEST DETAILS] Merchant ID: ${merchantId}`);
+    console.log(`📦 [REQUEST DETAILS] User ID: ${user_id}`);
+    console.log(`📦 [REQUEST DETAILS] Item ID (single): ${itemId}`);
+    console.log(`📦 [REQUEST DETAILS] Status (single): ${status}`);
+    console.log(`📦 [REQUEST DETAILS] Items (array): ${JSON.stringify(items, null, 2)}`);
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        error: 'user_id é obrigatório'
+      });
+    }
+
+    // Support both formats: single item or array of items
+    let itemsToUpdate = [];
+    if (items && Array.isArray(items)) {
+      // Array format
+      itemsToUpdate = items;
+    } else if (itemId && status) {
+      // Single item format
+      itemsToUpdate = [{ itemId, status }];
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either "items" array or "itemId" and "status" are required'
+      });
+    }
+
+    console.log(`📦 Items to update:`, itemsToUpdate);
+
+    // Get access token
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('ifood_tokens')
+      .select('access_token')
+      .eq('user_id', user_id)
+      .single();
+
+    if (tokenError || !tokenData) {
+      return res.status(401).json({
+        success: false,
+        error: 'Token de acesso não encontrado'
+      });
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    const results = [];
+
+    // Update each item status
+    for (const item of itemsToUpdate) {
+      try {
+        const { itemId, status } = item;
+
+        if (!itemId || !status) {
+          results.push({
+            itemId: itemId || 'unknown',
+            success: false,
+            error: 'itemId and status are required'
+          });
+          errorCount++;
+          continue;
+        }
+
+        console.log(`🔄 Updating item ${itemId} to status: ${status}`);
+
+        // Log detalhado da requisição
+        const requestUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/items/${itemId}/status`;
+        const requestBody = { status };
+        const requestHeaders = {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json'
+        };
+
+        console.log(`📡 [IFOOD API REQUEST] URL: ${requestUrl}`);
+        console.log(`📡 [IFOOD API REQUEST] Method: PATCH`);
+        console.log(`📡 [IFOOD API REQUEST] Headers:`, {
+          'Authorization': `Bearer ${tokenData.access_token.substring(0, 20)}...`,
+          'Content-Type': 'application/json'
+        });
+        console.log(`📡 [IFOOD API REQUEST] Body:`, requestBody);
+
+        // Call iFood API to update item status
+        const correctUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/items/status`;
+        const correctBody = { itemId, status };
+
+        console.log(`📡 [CORRECTED REQUEST] URL: ${correctUrl}`);
+        console.log(`📡 [CORRECTED REQUEST] Body:`, correctBody);
+
+        const ifoodResponse = await fetch(correctUrl, {
+          method: 'PATCH',
+          headers: requestHeaders,
+          body: JSON.stringify(correctBody)
+        });
+
+        // Log da resposta
+        console.log(`📡 [IFOOD API RESPONSE] Status: ${ifoodResponse.status}`);
+        console.log(`📡 [IFOOD API RESPONSE] Headers:`, Object.fromEntries(ifoodResponse.headers.entries()));
+
+        const responseText = await ifoodResponse.text();
+        console.log(`📡 [IFOOD API RESPONSE] Body:`, responseText);
+
+        if (ifoodResponse.ok) {
+          console.log(`✅ Item ${itemId} status updated successfully`);
+
+          // Update local database
+          try {
+            const { error: dbError } = await supabase
+              .from('products')
+              .update({
+                is_active: status === 'AVAILABLE',
+                updated_at: new Date().toISOString()
+              })
+              .eq('item_id', itemId)
+              .eq('merchant_id', merchantId);
+
+            if (dbError) {
+              console.error(`⚠️ Failed to update local database for item ${itemId}:`, dbError);
+            } else {
+              console.log(`✅ Local database updated for item ${itemId}`);
+            }
+          } catch (dbUpdateError) {
+            console.error(`❌ Error updating local database for item ${itemId}:`, dbUpdateError);
+          }
+
+          results.push({
+            itemId,
+            success: true,
+            status: status
+          });
+          successCount++;
+        } else {
+          const errorText = await ifoodResponse.text();
+          console.error(`❌ Failed to update item ${itemId}:`, errorText);
+
+          results.push({
+            itemId,
+            success: false,
+            error: `iFood API error: ${ifoodResponse.status} - ${errorText}`
+          });
+          errorCount++;
+        }
+      } catch (itemError: any) {
+        console.error(`❌ Error updating item ${item.itemId}:`, itemError);
+        results.push({
+          itemId: item.itemId || 'unknown',
+          success: false,
+          error: itemError.message
+        });
+        errorCount++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Updated ${successCount} items successfully, ${errorCount} failed`,
+      results: results,
+      summary: {
+        total: itemsToUpdate.length,
+        success: successCount,
+        errors: errorCount
+      }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error updating item status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update item status: ' + error.message
     });
   }
 });
@@ -1458,7 +2026,7 @@ app.listen(PORT, () => {
     console.log('✅ Token scheduler started');
 
     // Product sync scheduler
-    productSyncScheduler.start();
+    productSyncScheduler.start(0.5); // 30 segundos
     console.log('✅ Product sync scheduler started');
 
     // Log cleanup scheduler

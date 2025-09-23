@@ -54,30 +54,60 @@ export const useUserStoreProducts = () => {
     staleTime: 10 * 60 * 1000, // 10 minutos para merchant data
   });
 
-  // Busca produtos baseado nos merchant_ids
+  // Busca produtos baseado nos merchant_ids com sincronização iFood
   const productsQuery = useQuery({
     queryKey: ['user-store-products', user?.id, userMerchants?.map(m => m.merchant_id)],
     queryFn: async () => {
       if (!userMerchants || userMerchants.length === 0) return [];
 
-      const merchantIds = userMerchants.map(m => m.merchant_id);
+      console.log('🔄 [POLLING] Iniciando sincronização com dados frescos do iFood...');
 
+      // STEP 1: Buscar produtos frescos do iFood para cada merchant
+      for (const merchant of userMerchants) {
+        try {
+          console.log(`📡 [IFOOD] Sincronizando merchant: ${merchant.name} (${merchant.merchant_id})`);
+
+          // Chamar endpoint de sincronização do servidor
+          const response = await fetch(`http://localhost:8092/merchants/${merchant.merchant_id}/products/smart-sync`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              user_id: user?.id
+            })
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log(`✅ [SYNC] ${merchant.name}: ${result.updated_products} produtos atualizados`);
+          } else {
+            console.error(`❌ [SYNC] Erro ao sincronizar ${merchant.name}:`, response.status);
+          }
+        } catch (error) {
+          console.error(`❌ [SYNC] Erro na sincronização do merchant ${merchant.name}:`, error);
+        }
+      }
+
+      // STEP 2: Buscar dados atualizados do banco local
+      console.log('🗄️ [DB] Buscando dados atualizados do banco...');
       const { data, error } = await supabase
         .from('products')
         .select('*')
-        .in('merchant_id', merchantIds)
+        .in('merchant_id', userMerchants.map(m => m.merchant_id))
         .order('updated_at', { ascending: false });
 
       if (error) {
-        console.error('Erro ao buscar produtos das lojas:', error);
+        console.error('❌ [DB] Erro ao buscar produtos das lojas:', error);
         throw error;
       }
 
+      console.log(`✅ [POLLING] Sincronização completa: ${data?.length || 0} produtos`);
       return data as UserStoreProduct[];
     },
     enabled: !!user?.id && !!userMerchants && userMerchants.length > 0,
-    refetchInterval: 5 * 60 * 1000, // 5 minutos de polling automático
-    staleTime: 4 * 60 * 1000, // Dados ficam "stale" após 4 minutos
+    refetchInterval: 30 * 1000, // 30 segundos de polling automático
+    staleTime: 25 * 1000, // Dados ficam "stale" após 25 segundos
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

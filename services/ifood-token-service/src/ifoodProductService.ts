@@ -1182,7 +1182,10 @@ export class IFoodProductService {
 
       // 3. Atualizar banco local
       try {
-        await this.supabase
+        console.log(`🗄️ [DATABASE] Atualizando banco local para item: ${statusData.itemId}`);
+        console.log(`🗄️ [DATABASE] Novo status: ${statusData.status === 'AVAILABLE' ? 'AVAILABLE (true)' : 'UNAVAILABLE (false)'}`);
+
+        const { data: dbData, error: dbError } = await this.supabase
           .from('products')
           .update({
             is_active: statusData.status === 'AVAILABLE',
@@ -1190,8 +1193,15 @@ export class IFoodProductService {
           })
           .eq('item_id', statusData.itemId)
           .eq('merchant_id', merchantId);
+
+        if (dbError) {
+          console.error('❌ [DATABASE] Erro ao atualizar status localmente:', dbError);
+        } else {
+          console.log('✅ [DATABASE] Status atualizado com sucesso no banco local');
+          console.log('📊 [DATABASE] Dados atualizados:', dbData);
+        }
       } catch (dbError) {
-        console.warn('⚠️ Erro ao atualizar status localmente:', dbError);
+        console.error('❌ [DATABASE] Exceção ao atualizar status localmente:', dbError);
       }
 
       return {

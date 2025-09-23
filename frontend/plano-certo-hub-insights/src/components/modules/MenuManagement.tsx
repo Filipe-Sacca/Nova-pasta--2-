@@ -1182,10 +1182,14 @@ Renove o token na página de Tokens do iFood`);
                           />
                           {imagePreview && (
                             <div className="mt-2">
-                              <img 
-                                src={imagePreview} 
-                                alt="Preview" 
-                                className="w-32 h-32 object-cover rounded-lg"
+                              <img
+                                src={imagePreview}
+                                alt="Preview"
+                                className={`w-32 h-32 object-cover rounded-lg transition-all duration-300 ${
+                                  itemForm.status === 'UNAVAILABLE'
+                                    ? 'filter grayscale opacity-70'
+                                    : ''
+                                }`}
                               />
                             </div>
                           )}
@@ -1280,7 +1284,11 @@ Renove o token na página de Tokens do iFood`);
                                 <img
                                   src={productImages[product.id]}
                                   alt={product.name}
-                                  className="w-full h-full object-cover"
+                                  className={`w-full h-full object-cover transition-all duration-300 ${
+                                    !isProductActive(product.is_active)
+                                      ? 'filter grayscale opacity-70'
+                                      : ''
+                                  }`}
                                   onLoad={() => {
                                     console.log(`✅ Imagem carregada: ${product.name} - ${productImages[product.id]}`);
                                   }}
@@ -2460,10 +2468,14 @@ Renove o token na página de Tokens do iFood`);
                   
                   {(imagePreview || itemForm.imagePath) && (
                     <div className="relative">
-                      <img 
-                        src={imagePreview || itemForm.imagePath} 
-                        alt="Preview" 
-                        className="w-24 h-24 object-cover rounded-lg border"
+                      <img
+                        src={imagePreview || itemForm.imagePath}
+                        alt="Preview"
+                        className={`w-24 h-24 object-cover rounded-lg border transition-all duration-300 ${
+                          itemForm.status === 'UNAVAILABLE'
+                            ? 'filter grayscale opacity-70'
+                            : ''
+                        }`}
                       />
                       {imagePreview && (
                         <Button

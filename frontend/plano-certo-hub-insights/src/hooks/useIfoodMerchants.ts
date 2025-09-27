@@ -68,7 +68,15 @@ export const useIfoodMerchants = (userId?: string) => {
       }
 
       logger.debug('✅ Lojas sincronizadas encontradas (antes da deduplicação):', data?.length || 0);
-      
+
+      // DEBUG: Log detalhado dos dados retornados para identificar "Marollo"
+      if (data && data.length > 0) {
+        console.log('🔍 [DEBUG MAROLLO] Dados completos retornados do Supabase:');
+        data.forEach((merchant, index) => {
+          console.log(`${index + 1}. merchant_id: ${merchant.merchant_id}, name: "${merchant.name}", client_id: ${merchant.client_id}`);
+        });
+      }
+
       // Deduplica por merchant_id, mantendo o registro mais recente
       const merchantsMap = new Map();
       (data || []).forEach((merchant: any) => {
@@ -80,6 +88,17 @@ export const useIfoodMerchants = (userId?: string) => {
       
       const deduplicatedData = Array.from(merchantsMap.values());
       logger.debug('✅ Lojas após deduplicação:', deduplicatedData.length);
+
+      // DEBUG: Log dos dados finais após deduplicação
+      if (deduplicatedData.length > 0) {
+        console.log('🔍 [DEBUG MAROLLO] Dados finais após deduplicação:');
+        deduplicatedData.forEach((merchant: any, index) => {
+          console.log(`${index + 1}. merchant_id: ${merchant.merchant_id}, name: "${merchant.name}"`);
+          if (merchant.name && merchant.name.toLowerCase().includes('marollo')) {
+            console.log('🎯 [DEBUG MAROLLO] ENCONTRADO MAROLLO NOS DADOS:', merchant);
+          }
+        });
+      }
 
       if (data && data.length > deduplicatedData.length) {
         logger.debug(`⚠️ Removidas ${data.length - deduplicatedData.length} duplicatas da interface`);

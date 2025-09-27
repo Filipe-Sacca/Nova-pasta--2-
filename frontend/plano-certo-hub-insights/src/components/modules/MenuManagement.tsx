@@ -1,5 +1,6 @@
 
 import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,10 +41,9 @@ import {
   XCircle,
   TrendingDown
 } from 'lucide-react';
-import { useClients } from '@/hooks/useClients';
+// Removido useClients - agora usa merchants diretamente
 import { FilterBar } from '@/components/ui/filter-bar';
-import { useUserStoreProducts } from '@/hooks/useUserStoreProducts';
-import { useIfoodMerchants } from '@/hooks/useIfoodMerchants';
+import { useMerchantProducts, useAvailableMerchants } from '@/hooks/useMerchantProducts';
 import { useIfoodTokens } from '@/hooks/useIfoodTokens';
 import { useAuth } from '@/App';
 
@@ -57,10 +57,41 @@ const isProductActive = (status: any): boolean => {
 };
 
 export const MenuManagement = () => {
-  const { data: clients } = useClients();
+  // Agora usa merchants disponíveis em vez de clients baseados em user_id
   const { user } = useAuth();
-  const { data: merchants } = useIfoodMerchants(user?.id);
   const { tokens, getTokenForUser } = useIfoodTokens();
+
+  // DEBUG: Teste direto do Supabase
+  useEffect(() => {
+    const testSupabaseConnection = async () => {
+      console.log('🧪 [DEBUG] Testando conexão direta com Supabase...');
+
+      try {
+        const { data, error } = await supabase
+          .from('ifood_tokens')
+          .select('*')
+          .limit(5);
+
+        console.log('🧪 [DEBUG] Teste direto do Supabase:', {
+          data,
+          error,
+          dataLength: data?.length || 0,
+          user: user
+        });
+
+        if (data && data.length > 0) {
+          console.log('🧪 [DEBUG] Primeiro token encontrado:', data[0]);
+        }
+      } catch (err) {
+        console.error('🧪 [DEBUG] Erro no teste direto:', err);
+      }
+    };
+
+    // Executar teste apenas uma vez após componente montar
+    if (user) {
+      testSupabaseConnection();
+    }
+  }, [user]);
   const [selectedClient, setSelectedClient] = useState('');
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   
@@ -143,88 +174,37 @@ export const MenuManagement = () => {
   });
   
   // Usar o novo hook para buscar produtos das lojas do usuário
-  const { products, groupedProducts, isLoading, error, forceRefresh, lastUpdated, isRefetching } = useUserStoreProducts();
+  // selectedClient agora ativa o smart-sync sob demanda
+  // Usar novo hook baseado em merchant_id
+  const { products, stats, isLoading, error, forceRefresh, lastUpdated, isRefetching, sync } = useMerchantProducts(selectedClient);
 
-  // Função para buscar imagens dos produtos da nossa tabela product_images
-  const fetchProductImages = async (merchantId: string) => {
-    try {
-      console.log('🖼️ Iniciando busca de imagens...');
-      const userId = getCurrentUserId();
-      const imageMap: Record<string, string> = {};
+  // Buscar merchants disponíveis
+  const { data: availableMerchants } = useAvailableMerchants();
 
-      // ETAPA 1: Usar imagens dos produtos que já têm imagePath
-      console.log('📋 ETAPA 1: Processando imagens dos produtos...');
-      products.forEach((product, index) => {
-        const imagePath = product.imagePath || (product as any).image_path || (product as any).imageUrl;
+  // Função simplificada para processar imagens dos produtos
+  const processProductImages = () => {
+    console.log('🖼️ Processando imagens dos produtos...');
+    const imageMap: Record<string, string> = {};
 
-        if (imagePath) {
-          if (imagePath.startsWith('http')) {
-            imageMap[product.id] = imagePath;
-          } else {
-            imageMap[product.id] = `https://static-images.ifood.com.br/image/upload/${imagePath}`;
-          }
-          console.log(`✅ [PRODUTO] ${product.name}: ${imageMap[product.id]}`);
-        }
-      });
+    products.forEach((product) => {
+      const imagePath = product.imagePath || (product as any).image_path || (product as any).imageUrl;
 
-      // ETAPA 2: Tentar buscar da tabela product_images as imagens que não foram encontradas
-      console.log('📋 ETAPA 2: Tentando buscar da tabela product_images...');
-      try {
-        const response = await fetch(`http://localhost:8092/merchants/${merchantId}/product-images?user_id=${userId}`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log('📊 Dados da tabela product_images:', data);
-
-          if (data.success && data.images) {
-            Object.entries(data.images).forEach(([productId, imageData]: [string, any]) => {
-              // Always use the image from database if available (most recent)
-              if (imageData.full_url) {
-                imageMap[productId] = imageData.full_url;
-                const product = products.find(p => p.id === productId);
-                console.log(`✅ [TABELA] ${product?.name || productId}: ${imageData.full_url}`);
-              }
-            });
-          }
+      if (imagePath) {
+        // Se já é uma URL completa, usar diretamente
+        if (imagePath.startsWith('http')) {
+          imageMap[product.id] = imagePath;
         } else {
-          console.warn(`⚠️ Erro ${response.status} ao buscar product-images:`, await response.text());
+          // Se é um path do iFood, montar a URL completa
+          imageMap[product.id] = `https://static-images.ifood.com.br/image/upload/${imagePath}`;
         }
-      } catch (fetchError) {
-        console.warn('⚠️ Erro ao buscar da tabela product_images:', fetchError);
+        console.log(`✅ Imagem configurada para ${product.name}: ${imageMap[product.id]}`);
+      } else {
+        console.log(`⚠️ Sem imagem para ${product.name} (id: ${product.id})`);
       }
+    });
 
-      // ETAPA 3: Buscar imagens via consulta SQL direta (fallback para quando endpoint não existe)
-      console.log('📋 ETAPA 3: Tentando busca alternativa das imagens...');
-
-      if (Object.keys(imageMap).length === 0 || products.some(p => p.name === 'Espal' && !imageMap[p.id])) {
-        console.log('🔍 Tentando buscar via endpoint de produtos...');
-
-        // Vamos tentar uma abordagem diferente: usar um endpoint que sabemos que existe
-        try {
-          const response = await fetch(`http://localhost:8092/products?user_id=${userId}&with_images=true`);
-          if (response.ok) {
-            const data = await response.json();
-            console.log('📊 Dados de produtos com imagens:', data);
-          }
-        } catch (altError) {
-          console.log('⚠️ Endpoint alternativo também falhou');
-        }
-      }
-
-      products.forEach(product => {
-        if (!imageMap[product.id]) {
-          console.log(`🔍 Produto sem imagem: ${product.name} (id: ${product.id})`);
-        } else {
-          console.log(`✅ Produto com imagem: ${product.name} - ${imageMap[product.id]}`);
-        }
-      });
-
-      console.log('🖼️ Mapa final de imagens:', imageMap);
-      setProductImages(imageMap);
-
-    } catch (error) {
-      console.error('Erro ao processar imagens dos produtos:', error);
-      setProductImages({});
-    }
+    console.log('🖼️ Total de imagens processadas:', Object.keys(imageMap).length);
+    setProductImages(imageMap);
   };
 
   // Buscar categorias quando merchant for selecionado
@@ -232,16 +212,15 @@ export const MenuManagement = () => {
     if (selectedClient) {
       fetchCategories(selectedClient);
       setSelectedMerchantForCategories(selectedClient);
-      fetchProductImages(selectedClient);
     }
   }, [selectedClient]);
 
   // Atualizar imagens quando produtos mudarem
   useEffect(() => {
-    if (selectedClient && products.length > 0) {
-      fetchProductImages(selectedClient);
+    if (products.length > 0) {
+      processProductImages();
     }
-  }, [products, selectedClient]);
+  }, [products]);
 
   // Remover dados mock
   // const menuItems = [
@@ -327,7 +306,7 @@ export const MenuManagement = () => {
     }
   };
 
-  const filteredClients = clients?.filter(client => client.ifood_merchant_id) || [];
+  const filteredClients = availableMerchants || [];
 
   // Determinar o user_id correto
   const getCurrentUserId = () => {
@@ -345,19 +324,50 @@ export const MenuManagement = () => {
 
   // Função auxiliar para obter o token de acesso do iFood
   const getIfoodAccessToken = () => {
-    const userId = getCurrentUserId();
-    const userToken = tokens?.find(t => t.user_id === userId);
+    // Client Secret configurado para busca de token
+    const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+
+    // DEBUG: Verificar o estado dos tokens
+    console.log('🔍 [DEBUG] Estado dos tokens:', {
+      tokensArray: tokens,
+      tokensLength: tokens?.length || 0,
+      hasTokens: !!tokens && tokens.length > 0
+    });
+
+    // DEBUG: Log de todos os client_secrets disponíveis
+    if (tokens && tokens.length > 0) {
+      console.log('🔍 [DEBUG] Client secrets disponíveis:');
+      tokens.forEach((token, index) => {
+        console.log(`  ${index + 1}. ${token.client_secret} (user: ${token.user_id})`);
+      });
+    }
+
+    // Buscar token por client_secret específico
+    const tokenByClientSecret = tokens?.find(t => t.client_secret === TARGET_CLIENT_SECRET);
+    if (tokenByClientSecret?.access_token && TARGET_CLIENT_SECRET) {
+      console.log('🔑 Token do iFood encontrado por client_secret:', TARGET_CLIENT_SECRET);
+      return tokenByClientSecret.access_token;
+    }
+
+    console.log('⚠️ [DEBUG] Token por client_secret não encontrado. Tentando fallbacks...');
+
+    // Fallback: buscar por user_id (comportamento anterior)
+    const userToken = tokens?.find(t => t.user_id === user?.id);
     if (userToken?.access_token) {
-      console.log('🔑 Token do iFood encontrado para o usuário');
+      console.log('🔑 Token do iFood encontrado para o usuário (fallback)');
       return userToken.access_token;
     }
+
     // Se não encontrar por user_id, pegar o primeiro token disponível
     const firstToken = tokens?.[0];
     if (firstToken?.access_token) {
-      console.log('🔑 Usando primeiro token do iFood disponível');
+      console.log('🔑 Usando primeiro token do iFood disponível (fallback)');
+      console.log('🔍 Client secrets disponíveis:', tokens?.map(t => t.client_secret));
       return firstToken.access_token;
     }
+
     console.warn('⚠️ Nenhum token do iFood encontrado');
+    console.warn('🔍 Tokens disponíveis:', tokens?.length || 0);
     return '';
   };
 
@@ -367,9 +377,8 @@ export const MenuManagement = () => {
 
     setIsLoadingCategories(true);
     try {
-      const userId = getCurrentUserId();
       const accessToken = getIfoodAccessToken();
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/categories?user_id=${userId}`, {
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/categories`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -399,14 +408,13 @@ export const MenuManagement = () => {
     if (!selectedClient) return;
 
     try {
-      const userId = getCurrentUserId();
       const accessToken = getIfoodAccessToken();
-      
+
       // Na primeira vez que abre o dialog, sincronizar com iFood
       const syncParam = forceSync || categoryItems.length === 0 ? '&sync=true' : '';
-      
+
       const response = await fetch(
-        `http://localhost:8092/merchants/${selectedClient}/items?user_id=${userId}&category_id=${categoryId}${syncParam}`, 
+        `http://localhost:8093/merchants/${selectedClient}/items?category_id=${categoryId}${syncParam}`, 
         {
           method: 'GET',
           headers: {
@@ -454,20 +462,20 @@ export const MenuManagement = () => {
 
     try {
       console.log('🔍 Buscando dados do cliente selecionado:', selectedClient);
-      console.log('📋 Lista de clientes:', clients);
+      console.log('📋 Lista de merchants disponíveis:', availableMerchants);
       
       // Buscar cliente por ID ou usar o selectedClient diretamente se for um merchantId
       let merchantId: string | null = null;
       
-      // Primeiro tentar encontrar o cliente pelo ID
-      const client = clients?.find(c => c.id === selectedClient);
-      if (client?.ifood_merchant_id) {
-        merchantId = client.ifood_merchant_id;
-        console.log('🏪 Cliente encontrado:', client);
-        console.log('🏷️ Merchant ID encontrado via cliente:', merchantId);
+      // Primeiro tentar encontrar o merchant pelo ID
+      const merchant = availableMerchants?.find(m => m.merchant_id === selectedClient);
+      if (merchant) {
+        merchantId = merchant.merchant_id;
+        console.log('🏪 Merchant encontrado:', merchant);
+        console.log('🏷️ Merchant ID encontrado:', merchantId);
       } else {
-        // Tentar encontrar nos merchants diretos do iFood
-        const merchant = merchants?.find(m => m.merchant_id === selectedClient);
+        // Usar diretamente o selectedClient como merchantId se não foi encontrado na lista
+        merchantId = selectedClient;
         if (merchant) {
           merchantId = merchant.merchant_id;
           console.log('🏪 Merchant encontrado:', merchant);
@@ -486,8 +494,7 @@ export const MenuManagement = () => {
           selectedClient,
           client,
           merchantId,
-          clients: clients?.map(c => ({ id: c.id, name: c.name, ifood_merchant_id: c.ifood_merchant_id })),
-          merchants: merchants?.map(m => ({ merchant_id: m.merchant_id, name: m.name }))
+          merchants: availableMerchants?.map(m => ({ id: m.merchant_id, name: m.name }))
         });
         toast.error(`Não foi possível encontrar o ID do merchant para este cliente.\n\nSelectedClient: ${selectedClient}\nVerifique se:\n1. O cliente tem ID do iFood configurado na aba Clientes\n2. O merchant está sincronizado com o iFood\n3. Tente recarregar a página`);
         return;
@@ -495,46 +502,28 @@ export const MenuManagement = () => {
 
       // Buscar token de acesso do usuário
       console.log('🔐 Buscando token de acesso...');
-      const userId = getCurrentUserId();
-      console.log('🔍 User ID sendo usado:', userId);
-      
-      const accessToken = await getTokenForUser(userId);
-      
+
+      const accessToken = getIfoodAccessToken();
+
       if (!accessToken) {
-        const availableUsers = tokens.map(t => t.user_id).join(', ');
-        
-        if (tokens.length === 0) {
-          toast.error(`❌ Nenhum token de acesso válido encontrado.
+        toast.error(`❌ Nenhum token de acesso válido encontrado.
 
 ⚠️ AÇÃO NECESSÁRIA:
 1. 🔐 Faça login no iFood primeiro (Página de Tokens)
 2. ✅ Certifique-se de que o token foi salvo
 3. 🔄 Atualize a página e tente novamente`);
-        } else {
-          toast.error(`❌ Token expirado ou não encontrado para o usuário: ${userId}
-
-📊 Status dos tokens:
-• Tokens encontrados: ${tokens.length}
-• Usuários disponíveis: ${availableUsers}
-
-⚠️ AÇÃO NECESSÁRIA:
-1. 🔄 Renovar token na página de Tokens do iFood
-2. ✅ Verificar se o user_id está correto
-3. 🔄 Aguardar atualização automática do token`);
-        }
         return;
       }
 
       console.log('✅ Token obtido, fazendo requisição para criar categoria...');
 
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/categories`, {
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`, // Adicionar header Authorization
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          user_id: userId, // Usar user_id correto
           name: categoryForm.name,
           externalCode: categoryForm.externalCode || undefined,
           status: categoryForm.status,
@@ -635,9 +624,8 @@ Renove o token na página de Tokens do iFood`);
     setIsCreatingItem(true);
 
     try {
-      const userId = getCurrentUserId();
-      const accessToken = await getTokenForUser(userId);
-      
+      const accessToken = getIfoodAccessToken();
+
       if (!accessToken) {
         toast.error('❌ Token de acesso não encontrado ou expirado');
         setIsCreatingItem(false);
@@ -655,14 +643,13 @@ Renove o token na página de Tokens do iFood`);
           reader.readAsDataURL(imageFile);
         });
 
-        const uploadResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/image/upload`, {
+        const uploadResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/image/upload`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
           },
           body: JSON.stringify({
-            user_id: userId,
             image: base64Image
           })
         });
@@ -737,19 +724,15 @@ Renove o token na página de Tokens do iFood`);
 
       console.log('📤 Enviando para iFood:', itemData);
       console.log('🔑 Token sendo usado:', accessToken?.substring(0, 20) + '...');
-      console.log('👤 User ID:', userId);
       console.log('🏪 Merchant ID:', merchantId);
 
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items`, {
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify({
-          user_id: userId,
-          ...itemData
-        })
+        body: JSON.stringify(itemData)
       });
 
       const result = await response.json();
@@ -819,18 +802,16 @@ Renove o token na página de Tokens do iFood`);
     if (!selectedClient) return;
 
     try {
-      const userId = getCurrentUserId();
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items/price`, {
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items/price`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          user_id: userId,
           itemId: itemId,
           price: {
             value: parseFloat(newPrice)
@@ -853,35 +834,51 @@ Renove o token na página de Tokens do iFood`);
 
   // Função para atualizar status do item
   const handleUpdateItemStatus = async (itemId: string, newStatus: 'AVAILABLE' | 'UNAVAILABLE') => {
-    if (!selectedClient) return;
+    console.log('🔧 handleUpdateItemStatus chamada:', { itemId, newStatus, selectedClient });
+
+    if (!selectedClient) {
+      console.error('❌ Nenhum merchant selecionado');
+      toast.error('❌ Nenhum merchant selecionado');
+      return;
+    }
 
     try {
-      const userId = getCurrentUserId();
+      
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/items/status`, {
+      console.log('📡 Fazendo requisição para:', `http://localhost:8093/merchants/${merchantId}/items/status`);
+      console.log('📦 Payload:', {
+        
+        itemId: itemId,
+        status: newStatus
+      });
+
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          user_id: userId,
+          
           itemId: itemId,
           status: newStatus
         })
       });
 
       const result = await response.json();
+      console.log('📨 Resposta da API:', { status: response.status, result });
 
       if (response.ok && result.success) {
         toast.success('✅ Status atualizado com sucesso!');
         forceRefresh();
       } else {
-        toast.error(`❌ Erro ao atualizar status: ${result.error}`);
+        console.error('❌ Erro na resposta:', result);
+        toast.error(`❌ Erro ao atualizar status: ${result.error || 'Erro desconhecido'}`);
       }
     } catch (error: any) {
+      console.error('❌ Erro na requisição:', error);
       toast.error(`❌ Erro: ${error.message}`);
     }
   };
@@ -904,19 +901,19 @@ Renove o token na página de Tokens do iFood`);
     if (!selectedClient) return;
 
     try {
-      const userId = getCurrentUserId();
+      
       const merchantId = selectedClient;
 
       // ETAPA 1: Upload da imagem para iFood e armazenamento do path
       toast.loading('📸 Fazendo upload da imagem para iFood...');
 
-      const uploadResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/products/${productId}/upload-image`, {
+      const uploadResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: userId,
+          
           image: base64Image
         })
       });
@@ -932,14 +929,13 @@ Renove o token na página de Tokens do iFood`);
       toast.loading('🔄 Atualizando produto com a imagem...');
 
       // ETAPA 2: Atualizar o produto usando o path da imagem armazenado
-      const updateResponse = await fetch(`http://localhost:8092/merchants/${merchantId}/products/${productId}`, {
+      const updateResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/products/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: userId
-          // Não enviamos a imagem aqui, o endpoint PUT irá buscar o path armazenado
+          // Não enviamos a imagem nem user_id aqui, o endpoint PUT irá buscar automaticamente
         })
       });
 
@@ -980,18 +976,18 @@ Renove o token na página de Tokens do iFood`);
     if (!selectedClient) return;
 
     try {
-      const userId = getCurrentUserId();
+      
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8092/merchants/${merchantId}/images`, {
+      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/images`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          user_id: userId,
+          
           item_id: itemId,
           image: base64Image
         })
@@ -1480,7 +1476,20 @@ Renove o token na página de Tokens do iFood`);
                                     : "bg-white text-green-600 hover:text-green-700 hover:bg-green-50 border-green-300 hover:border-green-400"
                                 }
                                 onClick={() => {
+                                  console.log('🔘 Botão clicado para produto:', product.name);
+                                  console.log('📋 Dados do produto:', {
+                                    id: product.id,
+                                    item_id: product.item_id,
+                                    is_active: product.is_active
+                                  });
+
+                                  if (!product.item_id) {
+                                    toast.error('❌ Produto não possui item_id válido');
+                                    return;
+                                  }
+
                                   const newStatus = isProductActive(product.is_active) ? 'UNAVAILABLE' : 'AVAILABLE';
+                                  console.log('🔄 Alterando status para:', newStatus);
                                   handleUpdateItemStatus(product.item_id, newStatus);
                                 }}
                                 title={isProductActive(product.is_active) ? "Pausar produto" : "Ativar produto"}
@@ -1533,8 +1542,7 @@ Renove o token na página de Tokens do iFood`);
                       onClick={() => {
                         console.log('🔍 DEBUG INFO:', {
                           selectedClient,
-                          clients: clients?.map(c => ({ id: c.id, name: c.name, ifood_merchant_id: c.ifood_merchant_id })),
-                          merchants: merchants?.map(m => ({ merchant_id: m.merchant_id, name: m.name })),
+                          merchants: availableMerchants?.map(m => ({ id: m.merchant_id, name: m.name })),
                           filteredClients: filteredClients?.map(c => ({ id: c.id, name: c.name, ifood_merchant_id: c.ifood_merchant_id }))
                         });
                       }}
@@ -1691,11 +1699,11 @@ Renove o token na página de Tokens do iFood`);
                           
                           setIsLoadingCategories(true);
                           try {
-                            const userId = getCurrentUserId();
-                            const response = await fetch(`http://localhost:8092/merchants/${selectedClient}/categories/sync`, {
+                            
+                            const response = await fetch(`http://localhost:8093/merchants/${selectedClient}/categories/sync`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ user_id: userId })
+                              body: JSON.stringify({})
                             });
                             const result = await response.json();
                             
@@ -3101,10 +3109,10 @@ Renove o token na página de Tokens do iFood`);
                       name: editProductForm.name,
                       description: editProductForm.description
                     }],
-                    user_id: getCurrentUserId()
+                    
                   };
 
-                  const response = await fetch(`http://localhost:8092/merchants/${selectedClient}/items`, {
+                  const response = await fetch(`http://localhost:8093/merchants/${selectedClient}/items`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',

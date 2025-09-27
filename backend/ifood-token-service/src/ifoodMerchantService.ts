@@ -203,51 +203,58 @@ export class IFoodMerchantService {
   async storeMerchant(merchant: MerchantData): Promise<{ success: boolean; response: any }> {
     try {
       console.log(`💾 Storing merchant ${merchant.merchant_id} in database...`);
+      console.log(`🔧 [DEBUG] storeMerchant - Input data:`, JSON.stringify(merchant, null, 2));
+
+      const insertData = {
+        // Core fields (existing) - removed client_id
+        merchant_id: merchant.merchant_id,
+        name: merchant.name,
+        corporate_name: merchant.corporate_name,
+        user_id: merchant.user_id,
+        status: merchant.status,
+
+        // Extended fields (new)
+        phone: merchant.phone || null,
+        description: merchant.description || null,
+
+        // Address fields
+        address_street: merchant.address_street || null,
+        address_number: merchant.address_number || null,
+        address_complement: merchant.address_complement || null,
+        address_neighborhood: merchant.address_neighborhood || null,
+        address_city: merchant.address_city || null,
+        address_state: merchant.address_state || null,
+        postalCode: merchant.postalCode || null,
+        address_country: merchant.address_country || null,
+
+        // Business fields
+        operating_hours: merchant.operating_hours || null,
+        type: merchant.type || null,
+
+        // Location fields
+        latitude: merchant.latitude || null,
+        longitude: merchant.longitude || null,
+
+        // Sync timestamp
+        last_sync_at: merchant.last_sync_at || new Date().toISOString()
+      };
+
+      console.log(`🔧 [DEBUG] storeMerchant - Insert data:`, JSON.stringify(insertData, null, 2));
 
       const { data, error } = await this.supabase
         .from('ifood_merchants')
-        .insert({
-          // Core fields (existing)
-          merchant_id: merchant.merchant_id,
-          name: merchant.name,
-          corporate_name: merchant.corporate_name,
-          user_id: merchant.user_id,
-          client_id: merchant.client_id,
-          status: merchant.status,
-          
-          // Extended fields (new)
-          phone: merchant.phone || null,
-          description: merchant.description || null,
-          
-          // Address fields
-          address_street: merchant.address_street || null,
-          address_number: merchant.address_number || null,
-          address_complement: merchant.address_complement || null,
-          address_neighborhood: merchant.address_neighborhood || null,
-          address_city: merchant.address_city || null,
-          address_state: merchant.address_state || null,
-          postalCode: merchant.postalCode || null,
-          address_country: merchant.address_country || null,
-          
-          // Business fields
-          operating_hours: merchant.operating_hours || null,
-          type: merchant.type || null,
-          
-          // Location fields
-          latitude: merchant.latitude || null,
-          longitude: merchant.longitude || null,
-          
-          // Sync timestamp
-          last_sync_at: merchant.last_sync_at || new Date().toISOString()
-        })
+        .insert(insertData)
         .select()
         .single();
 
       if (error) {
         console.error('❌ Database error:', error);
-        return { 
-          success: false, 
-          response: { error: `Database error: ${error.message}` }
+        console.error('❌ Database error code:', error.code);
+        console.error('❌ Database error details:', error.details);
+        console.error('❌ Database error hint:', error.hint);
+        return {
+          success: false,
+          response: { error: `Database error: ${error.message} (Code: ${error.code})` }
         };
       }
 

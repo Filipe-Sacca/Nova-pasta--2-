@@ -6,11 +6,28 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// Create a shared Supabase client
-export const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY || ''
-);
+// Create a shared Supabase client - lazy initialization
+let supabaseInstance: SupabaseClient | null = null;
+
+export const getSupabaseClient = (): SupabaseClient => {
+  if (!supabaseInstance) {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL environment variable is required');
+    }
+    if (!supabaseKey) {
+      throw new Error('SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY environment variable is required');
+    }
+
+    supabaseInstance = createClient(supabaseUrl, supabaseKey);
+  }
+  return supabaseInstance;
+};
+
+// For backward compatibility - but don't initialize immediately
+export let supabase: SupabaseClient;
 
 export class IFoodTokenService {
   private supabase;
@@ -593,7 +610,8 @@ export class IFoodTokenService {
  */
 export async function getTokenForUser(userId: string): Promise<StoredToken | null> {
   try {
-    const { data, error } = await supabase
+    const supabaseClient = getSupabaseClient();
+    const { data, error } = await supabaseClient
       .from('ifood_tokens')
       .select('*')
       .eq('user_id', userId)
@@ -607,6 +625,30 @@ export async function getTokenForUser(userId: string): Promise<StoredToken | nul
     return data;
   } catch (error) {
     console.error('Error in getTokenForUser:', error);
+    return null;
+  }
+}
+
+/**
+ * Get any available token from the database (without user_id constraint)
+ */
+export async function getAnyAvailableToken(): Promise<StoredToken | null> {
+  try {
+    const supabaseClient = getSupabaseClient();
+    const { data, error } = await supabaseClient
+      .from('ifood_tokens')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching any available token:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getAnyAvailableToken:', error);
     return null;
   }
 }

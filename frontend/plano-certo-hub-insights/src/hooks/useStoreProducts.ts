@@ -53,7 +53,7 @@ export const useStoreProducts = (clientId?: string, merchantIds?: string[]): Use
 
       // Filtrar por client_id se fornecido
       if (clientId) {
-        query = query.eq('client_id', clientId);
+        query = query.eq('user_id', clientId);
       }
 
       // Filtrar por merchant_ids se fornecido

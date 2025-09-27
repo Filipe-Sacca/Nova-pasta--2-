@@ -117,7 +117,7 @@ export const useIntegrationCheck = (userId?: string) => {
 
                 // Só considerar expirado se realmente passou do tempo
                 if (hoursUntilExpiry <= 0) {
-                  logger.debug('⚠️ [useIntegrationCheck] Token iFood expirado para usuário:', userId);
+                  logger.debug('⚠️ [useIntegrationCheck] Token iFood expirado para client_secret:', ifoodData.client_secret);
                 } else {
                   logger.debug('✅ [useIntegrationCheck] Token válido, expira em:', Math.round(hoursUntilExpiry), 'horas');
                 }

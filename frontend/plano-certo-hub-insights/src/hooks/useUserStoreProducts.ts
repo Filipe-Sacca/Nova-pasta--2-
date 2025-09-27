@@ -30,67 +30,50 @@ export interface StoreProductsGroup {
 
 /**
  * Hook para buscar produtos baseado nos merchant_ids das lojas do usuário logado
- * Realiza polling automático a cada 5 minutos
+ * Versão otimizada: carregamento imediato do banco + smart-sync sob demanda
  */
-export const useUserStoreProducts = () => {
+export const useUserStoreProducts = (selectedMerchantId?: string) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Primeiro, busca os merchant_ids das lojas do usuário
-  const { data: userMerchants } = useQuery({
+  // Primeiro, busca os merchant_ids das lojas do usuário (versão simplificada)
+  const { data: userMerchants, isLoading: merchantsLoading } = useQuery({
     queryKey: ['user-merchants', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      
+      if (!user?.id) {
+        console.log('❌ [MERCHANTS] Sem user ID');
+        return [];
+      }
+
+      console.log('🔍 [MERCHANTS] Buscando merchants para user:', user.id);
       const { data, error } = await supabase
         .from('ifood_merchants')
         .select('merchant_id, name')
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [MERCHANTS] Erro:', error);
+        throw error;
+      }
+
+      console.log('✅ [MERCHANTS] Encontrados:', data?.length || 0);
       return data || [];
     },
     enabled: !!user?.id,
-    staleTime: 10 * 60 * 1000, // 10 minutos para merchant data
+    staleTime: 30 * 60 * 1000,
   });
 
-  // Busca produtos baseado nos merchant_ids com sincronização iFood
+  // Busca produtos diretamente do banco (rápido, sem API calls)
   const productsQuery = useQuery({
     queryKey: ['user-store-products', user?.id, userMerchants?.map(m => m.merchant_id)],
     queryFn: async () => {
-      if (!userMerchants || userMerchants.length === 0) return [];
+      console.log('🗄️ [PRODUCTS] Carregamento direto do banco...');
 
-      console.log('🔄 [POLLING] Iniciando sincronização com dados frescos do iFood...');
-
-      // STEP 1: Buscar produtos frescos do iFood para cada merchant
-      for (const merchant of userMerchants) {
-        try {
-          console.log(`📡 [IFOOD] Sincronizando merchant: ${merchant.name} (${merchant.merchant_id})`);
-
-          // Chamar endpoint de sincronização do servidor
-          const response = await fetch(`http://localhost:8092/merchants/${merchant.merchant_id}/products/smart-sync`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              user_id: user?.id
-            })
-          });
-
-          if (response.ok) {
-            const result = await response.json();
-            console.log(`✅ [SYNC] ${merchant.name}: ${result.updated_products} produtos atualizados`);
-          } else {
-            console.error(`❌ [SYNC] Erro ao sincronizar ${merchant.name}:`, response.status);
-          }
-        } catch (error) {
-          console.error(`❌ [SYNC] Erro na sincronização do merchant ${merchant.name}:`, error);
-        }
+      if (!userMerchants || userMerchants.length === 0) {
+        console.log('❌ [PRODUCTS] Sem merchants');
+        return [];
       }
 
-      // STEP 2: Buscar dados atualizados do banco local
-      console.log('🗄️ [DB] Buscando dados atualizados do banco...');
       const { data, error } = await supabase
         .from('products')
         .select('*')
@@ -98,19 +81,102 @@ export const useUserStoreProducts = () => {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        console.error('❌ [DB] Erro ao buscar produtos das lojas:', error);
+        console.error('❌ [PRODUCTS] Erro:', error);
         throw error;
       }
 
-      console.log(`✅ [POLLING] Sincronização completa: ${data?.length || 0} produtos`);
+      console.log(`✅ [PRODUCTS] Carregados do banco: ${data?.length || 0}`);
       return data as UserStoreProduct[];
     },
-    enabled: !!user?.id && !!userMerchants && userMerchants.length > 0,
-    refetchInterval: 30 * 1000, // 30 segundos de polling automático
-    staleTime: 25 * 1000, // Dados ficam "stale" após 25 segundos
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
+    enabled: !!user?.id && !!userMerchants && userMerchants.length > 0 && !merchantsLoading,
+    staleTime: 5 * 60 * 1000, // Cache por 5 minutos
+    refetchOnWindowFocus: false, // Não refazer ao focar
+    refetchOnReconnect: false, // Não refazer ao reconectar
   });
+
+  // Smart-sync sob demanda para merchant específico
+  const smartSyncQuery = useQuery({
+    queryKey: ['smart-sync', selectedMerchantId, user?.id],
+    queryFn: async () => {
+      if (!selectedMerchantId || !user?.id) return null;
+
+      const merchant = userMerchants?.find(m => m.merchant_id === selectedMerchantId);
+      if (!merchant) return null;
+
+      const timestamp = new Date().toLocaleTimeString();
+      console.log(`🧠 [SMART-SYNC] Executando para ${merchant.name} às ${timestamp}`);
+
+      try {
+        const response = await fetch(`http://localhost:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quick_mode: false // Sempre sincronização completa com iFood
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ [SMART-SYNC] ${merchant.name}: ${result.updated_products || 0} produtos atualizados`);
+
+          // Se houve atualizações, recarregar produtos do banco
+          if (result.updated_products > 0) {
+            queryClient.invalidateQueries({ queryKey: ['user-store-products'] });
+          }
+
+          return result;
+        } else {
+          console.error(`❌ [SMART-SYNC] Erro ${response.status} para merchant ${merchant.name}`);
+          return null;
+        }
+      } catch (error) {
+        console.error(`❌ [SMART-SYNC] Erro na requisição para merchant ${merchant.name}:`, error);
+        return null;
+      }
+    },
+    enabled: !!selectedMerchantId && !!user?.id && !!userMerchants,
+    refetchInterval: selectedMerchantId ? 30 * 1000 : false, // Polling apenas se merchant selecionado
+    staleTime: 25 * 1000,
+  });
+
+  // Função para sincronização em background (não bloqueia carregamento)
+  const syncInBackground = async (merchants: any[], userId: string | undefined) => {
+    if (!userId) return;
+
+    console.log('🔄 [BACKGROUND] Iniciando sincronização em background...');
+
+    for (const merchant of merchants) {
+      try {
+        console.log(`📡 [BACKGROUND] Sincronizando merchant: ${merchant.name}`);
+
+        // Sincronização completa em background
+        const response = await fetch(`http://localhost:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            quick_mode: false  // Sempre sincronização completa com iFood
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ [BACKGROUND] ${merchant.name}: ${result.updated_products} produtos atualizados`);
+
+          // Se houve atualizações, refazer query para mostrar dados frescos
+          if (result.updated_products > 0) {
+            console.log('🔄 [BACKGROUND] Dados atualizados, recarregando...');
+            queryClient.invalidateQueries({ queryKey: ['user-store-products'] });
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [BACKGROUND] Erro na sincronização do merchant ${merchant.name}:`, error);
+      }
+    }
+  };
 
   // Agrupa produtos por loja
   const groupedProducts: StoreProductsGroup[] = [];
@@ -147,16 +213,57 @@ export const useUserStoreProducts = () => {
     queryClient.invalidateQueries({ queryKey: ['user-store-products'] });
   };
 
+  // Função para sincronização manual com iFood
+  const syncWithIfood = async () => {
+    if (!userMerchants || !user?.id) return;
+
+    console.log('🔄 [MANUAL] Iniciando sincronização manual com iFood...');
+
+    for (const merchant of userMerchants) {
+      try {
+        const response = await fetch(`http://localhost:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quick_mode: false  // Sempre sincronização completa com iFood
+          })
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ [MANUAL] ${merchant.name}: ${result.updated_products} produtos atualizados`);
+        }
+      } catch (error) {
+        console.error(`❌ [MANUAL] Erro na sincronização:`, error);
+      }
+    }
+
+    // Atualizar dados após sincronização
+    forceRefresh();
+  };
+
+  // Debug logging (apenas quando necessário)
+  if (merchantsLoading || productsQuery.isLoading) {
+    console.log('🔍 [LOADING] Merchants:', merchantsLoading, 'Products:', productsQuery.isLoading);
+  }
+
   return {
     products: productsQuery.data || [],
     groupedProducts,
     merchants: userMerchants || [],
-    isLoading: productsQuery.isLoading,
+    isLoading: merchantsLoading || productsQuery.isLoading,
     error: productsQuery.error,
     refetch: productsQuery.refetch,
     forceRefresh,
+    syncWithIfood,
     lastUpdated: productsQuery.dataUpdatedAt,
     isRefetching: productsQuery.isRefetching,
+    // Smart-sync específico por merchant
+    smartSync: {
+      isLoading: smartSyncQuery.isLoading,
+      data: smartSyncQuery.data,
+      error: smartSyncQuery.error,
+    },
   };
 };
 

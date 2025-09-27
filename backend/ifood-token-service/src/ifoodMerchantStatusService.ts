@@ -5,7 +5,7 @@
  */
 
 import axios from 'axios';
-import { supabase, getTokenForUser } from './ifoodTokenService.js';
+import { getSupabaseClient, getTokenForUser } from './ifoodTokenService.js';
 import * as schedule from 'node-schedule';
 
 interface OpeningHours {

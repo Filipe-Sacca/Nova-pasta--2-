@@ -1,15 +1,16 @@
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 
 // Import route modules
-import menuRoutes from './routes/menuRoutes';
+import { createMenuRoutes } from './routes/menuRoutes';
 import imageRoutes from './routes/imageRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import merchantRoutes from './routes/merchantRoutes';
 import statusRoutes from './routes/statusRoutes';
 import interruptionRoutes from './routes/interruptionRoutes';
 import schedulerRoutes from './routes/schedulerRoutes';
+import { createSimpleSyncRoutes } from './routes/simpleSyncRoutes';
+import { createClient } from '@supabase/supabase-js';
 
 // Import schedulers for initialization
 import { tokenScheduler } from './tokenScheduler';
@@ -27,27 +28,27 @@ import { logCleanupScheduler } from './logCleanupScheduler';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8092;
-
-// Configure CORS
-app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:8080',
-    'http://localhost:8081',
-    'http://localhost:8082',
-    'http://localhost:8083',
-    'http://localhost:8086',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
-  optionsSuccessStatus: 200
-}));
+const PORT = process.env.PORT || 8093;
 
 app.use(express.json({ limit: '10mb' }));
+
+// Configure CORS - Allow all origins for development
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '*';
+  console.log('🌐 [CORS] Setting headers for origin:', origin);
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-requested-with');
+
+  if (req.method === 'OPTIONS') {
+    console.log('🌐 [CORS] Handling OPTIONS request');
+    res.status(200).end();
+    return;
+  }
+
+  next();
+});
 
 // Enhanced logging middleware
 app.use((req, res, next) => {
@@ -90,7 +91,7 @@ app.get('/', (req, res) => {
       'Image Management'
     ],
     moduleStructure: {
-      menuRoutes: 'Product sync, categories, smart sync',
+      menuRoutes: 'Product categories, menu management',
       imageRoutes: 'Product images, status updates',
       tokenRoutes: 'Token CRUD, refresh, scheduler',
       merchantRoutes: 'Merchant operations, sync',
@@ -116,9 +117,31 @@ app.get('/health', (req, res) => {
   });
 });
 
+// TESTE SUPER SIMPLES
+app.get('/test-basic', (req, res) => {
+  console.log('🧪 [TEST-BASIC] Endpoint hit!');
+  res.json({ success: true, message: 'Basic test working!' });
+});
+
+
 // ============================================================================
 // 📁 ROUTE MODULE REGISTRATION
 // ============================================================================
+
+// Initialize route dependencies
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Create menuRoutes with dependencies
+console.log('🔧 [DEBUG] Creating menuRoutes with dependencies...');
+const menuRoutes = createMenuRoutes({ supabase, supabaseUrl, supabaseKey });
+console.log('✅ [DEBUG] menuRoutes created:', !!menuRoutes);
+
+// Create simpleSyncRoutes (temporarily disabled)
+// console.log('🔧 [DEBUG] Creating simpleSyncRoutes with:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
+// const simpleSyncRoutes = createSimpleSyncRoutes(supabaseUrl, supabaseKey);
+// console.log('✅ [DEBUG] simpleSyncRoutes created:', !!simpleSyncRoutes);
 
 // Register all route modules
 app.use('/', tokenRoutes);          // 🔐 Token management
@@ -126,7 +149,18 @@ app.use('/', merchantRoutes);       // 🏪 Merchant operations
 app.use('/', statusRoutes);         // 🟢 Status monitoring
 app.use('/', interruptionRoutes);   // 📅 Interruptions
 app.use('/', schedulerRoutes);      // 📦 Schedulers
-app.use('/', menuRoutes);           // 🍽️ Product/Menu operations
+app.use('/', menuRoutes);           // 🍽️ Product/Menu operations - REACTIVATED
+
+// Debug endpoints for testing
+app.get('/debug-test', (req, res) => {
+  console.log('🧪 [DEBUG-TEST] Direct endpoint hit!');
+  res.json({ success: true, message: 'Direct test working!' });
+});
+
+// simpleSyncRoutes temporarily disabled - menuRoutes reactivated
+// console.log('🔧 [DEBUG] Registering simpleSyncRoutes...');
+// app.use('/', simpleSyncRoutes);     // 🎯 Simple sync (isolated) - DISABLED
+// console.log('✅ [DEBUG] simpleSyncRoutes registered');
 app.use('/', imageRoutes);          // 🖼️ Image management
 
 // ============================================================================
@@ -155,6 +189,7 @@ app.use('*', (req, res) => {
   });
 });
 
+
 // ============================================================================
 // 🚀 SERVER STARTUP
 // ============================================================================
@@ -172,7 +207,7 @@ const server = app.listen(PORT, () => {
   console.log('   🟢 Status Monitoring (statusRoutes)');
   console.log('   📅 Interruptions (interruptionRoutes)');
   console.log('   📦 Schedulers (schedulerRoutes)');
-  console.log('   🍽️ Product/Menu (menuRoutes)');
+  console.log('   🍽️ Product/Menu (menuRoutes) - REACTIVATED');
   console.log('   🖼️ Image Management (imageRoutes)');
   console.log('🎯 ============================================\n');
 });

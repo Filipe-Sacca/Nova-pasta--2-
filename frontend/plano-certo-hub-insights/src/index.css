@@ -1,4 +1,7 @@
 
+/* Leaflet Map Styles */
+@import 'leaflet/dist/leaflet.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -193,9 +196,6 @@ All colors MUST be HSL.
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
-/* Leaflet Map Styles */
-@import 'leaflet/dist/leaflet.css';
 
 /* Fix for Leaflet icons in production build */
 .leaflet-default-icon-path {

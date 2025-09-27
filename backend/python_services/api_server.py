@@ -13,7 +13,7 @@ app = FastAPI(title="iFood Token Service API", version="1.0.0")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,8 +73,8 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "api_server:app", 
-        host="0.0.0.0", 
-        port=8000, 
+        "api_server:app",
+        host="0.0.0.0",
+        port=5000,
         reload=True
     )

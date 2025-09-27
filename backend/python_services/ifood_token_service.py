@@ -168,8 +168,7 @@ class IFoodTokenService:
                 "access_token": token_data["access_token"],
                 "expires_at": token_data["expires_at"],
                 "created_at": token_data["created_at"],
-                "user_id": request.user_id,
-                "updated_at": datetime.now().isoformat()
+                "user_id": request.user_id
             }
             
             # Upsert token (insert or update if exists)

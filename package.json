@@ -4,6 +4,7 @@
   "description": "Sistema completo de integração com iFood - Renovação automática de tokens, sincronização de dados e dashboard web",
   "main": "run.py",
   "scripts": {
+    "dev": "./scripts/dev.sh",
     "start": "python run.py --status",
     "sync": "python run.py --sync",
     "token-check": "node scripts-utils/test-expiration-check.js",

@@ -1,7 +1,7 @@
 import { supabase } from '../integrations/supabase/client';
 
 // Service URLs
-const LOCAL_SERVICE_URL = 'http://localhost:8092';
+const LOCAL_SERVICE_URL = 'http://localhost:8093';
 
 interface MerchantSyncResult {
   success: boolean;
@@ -313,7 +313,8 @@ export async function getMerchantDetail(merchantId: string, userId: string): Pro
     }
 
     // Call the backend endpoint that will fetch from API and save to database
-    const response = await fetch(`${LOCAL_SERVICE_URL}/merchants/${merchantId}?user_id=${userId}`, {
+    // Backend will use any available token from database
+    const response = await fetch(`${LOCAL_SERVICE_URL}/merchants/${merchantId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

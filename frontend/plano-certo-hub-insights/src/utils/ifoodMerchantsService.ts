@@ -38,7 +38,7 @@ export interface IfoodMerchantsResponse {
 
 // Classe de serviço para gerenciar merchants do iFood
 export class IfoodMerchantsService {
-  private static readonly LOCAL_SERVICE_URL = 'http://localhost:8093';
+  private static readonly LOCAL_SERVICE_URL = 'http://5.161.109.157:8093';
 
   // Buscar token válido da tabela ifood_tokens
   static async getValidToken(userId?: string): Promise<{ token: string | null; error?: string }> {

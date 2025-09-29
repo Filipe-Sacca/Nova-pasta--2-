@@ -65,48 +65,12 @@ export const useMerchantProducts = (merchantId?: string) => {
     refetchOnReconnect: false,
   });
 
-  // Sincronização com iFood para o merchant específico
-  const syncQuery = useQuery({
-    queryKey: ['merchant-sync', merchantId],
-    queryFn: async () => {
-      if (!merchantId) return null;
-
-      console.log(`🧠 [MERCHANT-SYNC] Sincronizando produtos para merchant: ${merchantId}`);
-
-      try {
-        const response = await fetch(`http://localhost:8093/merchants/${merchantId}/products/simple-sync`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            quick_mode: false // Sincronização completa com iFood
-          })
-        });
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log(`✅ [MERCHANT-SYNC] ${merchantId}: ${result.updated_products || 0} produtos atualizados`);
-
-          // Se houve atualizações, recarregar produtos
-          if (result.updated_products > 0) {
-            queryClient.invalidateQueries({ queryKey: ['merchant-products', merchantId] });
-          }
-
-          return result;
-        } else {
-          console.error(`❌ [MERCHANT-SYNC] Erro ${response.status} para merchant ${merchantId}`);
-          return null;
-        }
-      } catch (error) {
-        console.error(`❌ [MERCHANT-SYNC] Erro na requisição:`, error);
-        return null;
-      }
-    },
-    enabled: !!merchantId,
-    refetchInterval: merchantId ? 30 * 1000 : false, // Polling de 30s se merchant ativo
-    staleTime: 25 * 1000,
-  });
+  // Sync query DISABLED - simple-sync endpoint removed
+  const syncQuery = {
+    data: null,
+    isLoading: false,
+    error: null
+  };
 
   // Estatísticas dos produtos
   const stats = {
@@ -128,36 +92,10 @@ export const useMerchantProducts = (merchantId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['merchant-products', merchantId] });
   };
 
-  // Função para sincronização manual
+  // Sync function DISABLED - simple-sync endpoint removed
   const syncWithIfood = async () => {
-    if (!merchantId) return;
-
-    console.log('🔄 [MANUAL-SYNC] Iniciando sincronização manual para merchant:', merchantId);
-
-    try {
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/products/simple-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quick_mode: false
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`✅ [MANUAL-SYNC] ${merchantId}: ${result.updated_products} produtos atualizados`);
-
-        // Atualizar dados após sincronização
-        forceRefresh();
-        return result;
-      } else {
-        console.error(`❌ [MANUAL-SYNC] Erro ${response.status}`);
-        return null;
-      }
-    } catch (error) {
-      console.error(`❌ [MANUAL-SYNC] Erro:`, error);
-      return null;
-    }
+    console.log('⚠️ [MANUAL-SYNC] Endpoint removido - sync não disponível');
+    return null;
   };
 
   return {

@@ -249,6 +249,41 @@ router.post('/merchants/fetch-from-ifood', async (req, res) => {
   }
 });
 
+// GET /merchants - Lista todos os merchants do banco de dados
+router.get('/merchants', async (req, res) => {
+  try {
+    console.log('🏪 MERCHANTS - Buscando todos os merchants do banco');
+
+    const merchantService = new IFoodMerchantService(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY!
+    );
+
+    const result = await merchantService.getAllMerchantsFromDB();
+
+    if (result.success) {
+      console.log('🏪 MERCHANTS - Lista obtida com sucesso:', result.merchants?.length || 0, 'merchants');
+      res.json({
+        success: true,
+        merchants: result.merchants || [],
+        total: result.merchants?.length || 0
+      });
+    } else {
+      console.log('🏪 MERCHANTS - Erro ao obter lista:', result.error);
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Erro ao obter lista de merchants'
+      });
+    }
+  } catch (error) {
+    console.error('🏪 MERCHANTS - Erro geral ao obter lista:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
 router.get('/merchants/:merchantId', async (req, res) => {
   try {
     const { merchantId } = req.params;
@@ -292,6 +327,48 @@ router.get('/merchants/:merchantId', async (req, res) => {
     }
   } catch (error) {
     console.error('🏪 MERCHANT - Erro geral ao obter detalhes:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erro interno do servidor'
+    });
+  }
+});
+
+// GET /merchants/{merchantId}/status - Status específico do merchant
+router.get('/merchants/:merchantId/status', async (req, res) => {
+  try {
+    const { merchantId } = req.params;
+
+    console.log('🏪 MERCHANT STATUS - Buscando status do merchant:', merchantId);
+
+    const tokenInfo = await getAnyAvailableToken();
+
+    if (!tokenInfo) {
+      return res.status(401).json({
+        error: 'Nenhum token encontrado no banco de dados'
+      });
+    }
+
+    const { IFoodMerchantStatusService } = await import('../ifoodMerchantStatusService');
+    const result = await IFoodMerchantStatusService.fetchMerchantStatus(merchantId, tokenInfo.access_token);
+
+    if (result.success) {
+      console.log('🏪 MERCHANT STATUS - Status obtido com sucesso:', merchantId);
+      res.json({
+        success: true,
+        merchant_id: merchantId,
+        status: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      console.log('🏪 MERCHANT STATUS - Erro ao obter status:', result.data);
+      res.status(500).json({
+        success: false,
+        error: result.data?.error || 'Erro ao obter status do merchant'
+      });
+    }
+  } catch (error) {
+    console.error('🏪 MERCHANT STATUS - Erro geral ao obter status:', error);
     res.status(500).json({
       success: false,
       error: 'Erro interno do servidor'

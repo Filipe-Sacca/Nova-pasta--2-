@@ -42,7 +42,7 @@ export const useIntegrationCheck = (userId?: string) => {
         // Verificar integração do iFood
         const { data: ifoodData, error: ifoodError } = await supabase
           .from('ifood_tokens')
-          .select('*')
+          .select('*, token_updated_at')
           .eq('user_id', userId)
           .maybeSingle();
 
@@ -67,66 +67,36 @@ export const useIntegrationCheck = (userId?: string) => {
         
         if (hasIfoodIntegration) {
           logger.debug('✅ Integração iFood encontrada para usuário:', userId);
-          
-          // Verificação robusta de expiração
-          if (ifoodData.expires_at) {
-            const now = new Date();
-            let expiresAt: Date | null = null;
-            
-            logger.debug('🔍 [useIntegrationCheck] Verificando expiração do token:', {
-              rawExpiresAt: ifoodData.expires_at,
-              type: typeof ifoodData.expires_at,
-              currentTime: now.toISOString()
+
+          // Verificação simples de expiração usando a mesma lógica do useIfoodTokens
+          if (ifoodData.expires_at && ifoodData.token_updated_at) {
+            const nowTimestamp = Math.floor(Date.now() / 1000);
+            const durationInSeconds = typeof ifoodData.expires_at === 'string'
+              ? parseInt(ifoodData.expires_at)
+              : ifoodData.expires_at;
+
+            // Calcular timestamp real de expiração: token_updated_at + expires_at
+            const tokenUpdatedAtTimestamp = Math.floor(new Date(ifoodData.token_updated_at).getTime() / 1000);
+            const actualExpiresAtTimestamp = tokenUpdatedAtTimestamp + durationInSeconds;
+            const isExpired = actualExpiresAtTimestamp <= nowTimestamp;
+
+            logger.debug('⏰ [useIntegrationCheck] Verificação de expiração:', {
+              tokenUpdatedAt: new Date(ifoodData.token_updated_at).toISOString(),
+              durationSeconds: durationInSeconds,
+              actualExpiresAt: new Date(actualExpiresAtTimestamp * 1000).toISOString(),
+              now: new Date(nowTimestamp * 1000).toISOString(),
+              isExpired: isExpired,
+              hoursUntilExpiry: (actualExpiresAtTimestamp - nowTimestamp) / 3600
             });
 
-            try {
-              if (typeof ifoodData.expires_at === 'number') {
-                // Se é número, tentar diferentes interpretações
-                if (ifoodData.expires_at > 10000000000) {
-                  // Timestamp em milissegundos
-                  expiresAt = new Date(ifoodData.expires_at);
-                  logger.debug('📅 [useIntegrationCheck] Interpretado como timestamp em milissegundos');
-                } else if (ifoodData.expires_at > 1000000000) {
-                  // Timestamp em segundos
-                  expiresAt = new Date(ifoodData.expires_at * 1000);
-                  logger.debug('📅 [useIntegrationCheck] Interpretado como timestamp em segundos');
-                } else if (ifoodData.expires_at > 0 && ifoodData.expires_at < 86400) {
-                  // Duração em segundos (menos de 24h), usar updated_at como base
-                  const baseTime = ifoodData.updated_at ? new Date(ifoodData.updated_at) : new Date(ifoodData.created_at);
-                  expiresAt = new Date(baseTime.getTime() + (ifoodData.expires_at * 1000));
-                  logger.debug('📅 [useIntegrationCheck] Interpretado como duração em segundos desde', baseTime);
-                }
-              } else if (typeof ifoodData.expires_at === 'string') {
-                // Se é string, tentar parse direto
-                expiresAt = new Date(ifoodData.expires_at);
-                logger.debug('📅 [useIntegrationCheck] Interpretado como string de data');
-              }
-
-              // Verificar se conseguimos uma data válida
-              if (!expiresAt || isNaN(expiresAt.getTime())) {
-                logger.debug('⚠️ [useIntegrationCheck] Não foi possível interpretar expires_at, assumindo token válido');
-              } else {
-                const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-                
-                logger.debug('⏰ [useIntegrationCheck] Verificação final:', {
-                  now: now.toISOString(),
-                  expiresAt: expiresAt.toISOString(),
-                  hoursUntilExpiry: hoursUntilExpiry,
-                  isExpired: hoursUntilExpiry <= 0
-                });
-
-                // Só considerar expirado se realmente passou do tempo
-                if (hoursUntilExpiry <= 0) {
-                  logger.debug('⚠️ [useIntegrationCheck] Token iFood expirado para client_secret:', ifoodData.client_secret);
-                } else {
-                  logger.debug('✅ [useIntegrationCheck] Token válido, expira em:', Math.round(hoursUntilExpiry), 'horas');
-                }
-              }
-            } catch (parseError) {
-              logger.debug('⚠️ [useIntegrationCheck] Erro ao interpretar expires_at:', parseError);
+            if (isExpired) {
+              logger.debug('⚠️ [useIntegrationCheck] Token iFood expirado para client_secret:', ifoodData.client_secret);
+            } else {
+              const hoursLeft = Math.round((actualExpiresAtTimestamp - nowTimestamp) / 3600);
+              logger.debug('✅ [useIntegrationCheck] Token válido, expira em:', hoursLeft, 'horas');
             }
           } else {
-            logger.debug('⚠️ [useIntegrationCheck] expires_at não definido, assumindo token válido');
+            logger.debug('⚠️ [useIntegrationCheck] expires_at ou token_updated_at não definido, assumindo token válido');
           }
         } else {
           logger.debug('❌ Nenhuma integração iFood encontrada para usuário:', userId);

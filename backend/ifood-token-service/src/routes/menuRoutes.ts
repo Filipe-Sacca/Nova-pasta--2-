@@ -426,6 +426,114 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
   });
 
 
+  // ============================================================================
+  // 🔄 ITEM STATUS MANAGEMENT
+  // ============================================================================
+
+  // Update item status - Simple and Direct
+  router.patch('/merchants/:merchantId/items/status', async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { itemId, status } = req.body;
+
+      console.log(`🔄 [SIMPLE] Updating item status for merchant: ${merchantId}`);
+      console.log(`📦 [SIMPLE] Request:`, { itemId, status });
+
+      // Validate required fields
+      if (!itemId || !status) {
+        return res.status(400).json({
+          success: false,
+          error: 'itemId and status are required'
+        });
+      }
+
+      // Step 1: Get access token using fixed client_secret
+      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+
+      console.log(`🔑 [SIMPLE] Searching token by client_secret: ${TARGET_CLIENT_SECRET.substring(0, 10)}...`);
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('ifood_tokens')
+        .select('access_token')
+        .eq('client_secret', TARGET_CLIENT_SECRET)
+        .single();
+
+      if (tokenError || !tokenData?.access_token) {
+        console.error(`❌ [SIMPLE] Token not found:`, tokenError);
+        return res.status(401).json({
+          success: false,
+          error: 'Token de acesso não encontrado'
+        });
+      }
+
+      console.log(`✅ [SIMPLE] Token found, making request to iFood...`);
+
+      // Step 2: Call iFood API
+      const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/items/status`;
+      const ifoodPayload = { itemId, status };
+
+      console.log(`📡 [SIMPLE] iFood API URL: ${ifoodUrl}`);
+      console.log(`📦 [SIMPLE] iFood Payload:`, ifoodPayload);
+
+      const ifoodResponse = await fetch(ifoodUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(ifoodPayload)
+      });
+
+      console.log(`📡 [SIMPLE] iFood API Response Status: ${ifoodResponse.status}`);
+
+      if (ifoodResponse.ok) {
+        console.log(`✅ [SIMPLE] iFood API success - updating local database...`);
+
+        // Step 3: Update local database
+        const { error: dbError } = await supabase
+          .from('products')
+          .update({
+            is_active: status,
+            updated_at: new Date().toISOString()
+          })
+          .eq('item_id', itemId)
+          .eq('merchant_id', merchantId);
+
+        if (dbError) {
+          console.error(`⚠️ [SIMPLE] Database update failed:`, dbError);
+        } else {
+          console.log(`✅ [SIMPLE] Database updated successfully`);
+        }
+
+        return res.json({
+          success: true,
+          message: 'Item status updated successfully',
+          itemId,
+          status,
+          ifoodStatus: ifoodResponse.status
+        });
+
+      } else {
+        const errorText = await ifoodResponse.text();
+        console.error(`❌ [SIMPLE] iFood API failed:`, errorText);
+
+        return res.status(ifoodResponse.status).json({
+          success: false,
+          error: `iFood API error: ${ifoodResponse.status} - ${errorText}`,
+          itemId,
+          status
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ [SIMPLE] Fatal error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error: ' + error.message
+      });
+    }
+  });
+
   return router;
 }
 

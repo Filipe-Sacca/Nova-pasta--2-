@@ -951,6 +951,76 @@ export class IFoodMerchantService {
   }
 
   /**
+   * Get all merchants from database
+   * Returns all merchants stored in the ifood_merchants table
+   */
+  async getAllMerchantsFromDB(): Promise<{ success: boolean; merchants?: any[]; error?: string }> {
+    try {
+      console.log('📊 MERCHANT SERVICE - Buscando todos os merchants do banco de dados');
+
+      const { data, error } = await this.supabase
+        .from('ifood_merchants')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('❌ Erro ao buscar merchants do banco:', error);
+        return {
+          success: false,
+          error: `Erro ao buscar merchants: ${error.message}`
+        };
+      }
+
+      console.log('✅ Merchants encontrados no banco:', data?.length || 0);
+      return {
+        success: true,
+        merchants: data || []
+      };
+    } catch (error: any) {
+      console.error('❌ Erro geral ao buscar merchants do banco:', error);
+      return {
+        success: false,
+        error: `Erro interno: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Update merchant status in database
+   * Used by polling service to update availability
+   */
+  async updateMerchantStatus(merchantId: string, available: boolean): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`📊 MERCHANT SERVICE - Atualizando status do merchant ${merchantId}: ${available ? 'aberto' : 'fechado'}`);
+
+      const { data, error } = await this.supabase
+        .from('ifood_merchants')
+        .update({
+          status: available,
+          last_sync_at: new Date().toISOString()
+        })
+        .eq('merchant_id', merchantId);
+
+      if (error) {
+        console.error('❌ Erro ao atualizar status do merchant:', error);
+        return {
+          success: false,
+          error: `Erro ao atualizar status: ${error.message}`
+        };
+      }
+
+      console.log(`✅ Status do merchant ${merchantId} atualizado para: ${available ? 'aberto' : 'fechado'}`);
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ Erro geral ao atualizar status do merchant:', error);
+      return {
+        success: false,
+        error: `Erro interno: ${error.message}`
+      };
+    }
+  }
+
+  /**
    * Validate if user has access to specific merchant
    * Security check for merchant ownership
    */

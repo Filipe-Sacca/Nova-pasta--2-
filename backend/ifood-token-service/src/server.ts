@@ -3,19 +3,21 @@ import dotenv from 'dotenv';
 
 // Import route modules
 import { createMenuRoutes } from './routes/menuRoutes';
-import imageRoutes from './routes/imageRoutes';
+import { createImageRoutes } from './routes/imageRoutes';
 import tokenRoutes from './routes/tokenRoutes';
 import merchantRoutes from './routes/merchantRoutes';
 import statusRoutes from './routes/statusRoutes';
 import interruptionRoutes from './routes/interruptionRoutes';
+import openingHoursRoutes from './routes/openingHoursRoutes';
 import schedulerRoutes from './routes/schedulerRoutes';
-import { createSimpleSyncRoutes } from './routes/simpleSyncRoutes';
+import qrcodeRoutes from './routes/qrcodeRoutes';
 import { createClient } from '@supabase/supabase-js';
 
 // Import schedulers for initialization
 import { tokenScheduler } from './tokenScheduler';
 import { productSyncScheduler } from './productSyncScheduler';
 import { logCleanupScheduler } from './logCleanupScheduler';
+import { MerchantPollingService } from './merchantPollingService';
 
 // ============================================================================
 // 🚀 REFACTORED IFOOD TOKEN SERVICE - MODULAR ARCHITECTURE
@@ -138,17 +140,21 @@ console.log('🔧 [DEBUG] Creating menuRoutes with dependencies...');
 const menuRoutes = createMenuRoutes({ supabase, supabaseUrl, supabaseKey });
 console.log('✅ [DEBUG] menuRoutes created:', !!menuRoutes);
 
-// Create simpleSyncRoutes (temporarily disabled)
-// console.log('🔧 [DEBUG] Creating simpleSyncRoutes with:', { supabaseUrl: !!supabaseUrl, supabaseKey: !!supabaseKey });
-// const simpleSyncRoutes = createSimpleSyncRoutes(supabaseUrl, supabaseKey);
-// console.log('✅ [DEBUG] simpleSyncRoutes created:', !!simpleSyncRoutes);
+// Create imageRoutes with dependencies
+console.log('🔧 [DEBUG] Creating imageRoutes with dependencies...');
+const imageRoutes = createImageRoutes({ supabase, supabaseUrl, supabaseKey });
+console.log('✅ [DEBUG] imageRoutes created:', !!imageRoutes);
+
+// simpleSyncRoutes REMOVED - not needed
 
 // Register all route modules
 app.use('/', tokenRoutes);          // 🔐 Token management
 app.use('/', merchantRoutes);       // 🏪 Merchant operations
 app.use('/', statusRoutes);         // 🟢 Status monitoring
 app.use('/', interruptionRoutes);   // 📅 Interruptions
+app.use('/', openingHoursRoutes);   // 🕐 Opening Hours
 app.use('/', schedulerRoutes);      // 📦 Schedulers
+app.use('/', qrcodeRoutes);         // 🔗 QR Code Generation
 app.use('/', menuRoutes);           // 🍽️ Product/Menu operations - REACTIVATED
 
 // Debug endpoints for testing
@@ -157,10 +163,7 @@ app.get('/debug-test', (req, res) => {
   res.json({ success: true, message: 'Direct test working!' });
 });
 
-// simpleSyncRoutes temporarily disabled - menuRoutes reactivated
-// console.log('🔧 [DEBUG] Registering simpleSyncRoutes...');
-// app.use('/', simpleSyncRoutes);     // 🎯 Simple sync (isolated) - DISABLED
-// console.log('✅ [DEBUG] simpleSyncRoutes registered');
+// simpleSyncRoutes REMOVED completely
 app.use('/', imageRoutes);          // 🖼️ Image management
 
 // ============================================================================
@@ -194,7 +197,10 @@ app.use('*', (req, res) => {
 // 🚀 SERVER STARTUP
 // ============================================================================
 
-const server = app.listen(PORT, () => {
+// Initialize merchant polling service
+const merchantPolling = new MerchantPollingService();
+
+const server = app.listen(PORT, async () => {
   console.log('\n🎯 ============================================');
   console.log('🚀 iFood Token Service - Modular Architecture');
   console.log('🎯 ============================================');
@@ -206,20 +212,31 @@ const server = app.listen(PORT, () => {
   console.log('   🏪 Merchant Operations (merchantRoutes)');
   console.log('   🟢 Status Monitoring (statusRoutes)');
   console.log('   📅 Interruptions (interruptionRoutes)');
+  console.log('   🕐 Opening Hours (openingHoursRoutes)');
   console.log('   📦 Schedulers (schedulerRoutes)');
   console.log('   🍽️ Product/Menu (menuRoutes) - REACTIVATED');
   console.log('   🖼️ Image Management (imageRoutes)');
+  console.log('   🔄 Merchant Polling (30s intervals)');
   console.log('🎯 ============================================\n');
+
+  // Start merchant polling service
+  try {
+    await merchantPolling.start();
+    console.log('✅ Merchant polling service started successfully');
+  } catch (error) {
+    console.error('❌ Failed to start merchant polling service:', error);
+  }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 SIGTERM received, shutting down gracefully...');
 
-  // Stop all schedulers
+  // Stop all schedulers and polling
   tokenScheduler.stop();
   productSyncScheduler.stop();
   logCleanupScheduler.stop();
+  merchantPolling.stop();
 
   server.close(() => {
     console.log('✅ Server closed successfully');
@@ -230,10 +247,11 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   console.log('🛑 SIGINT received, shutting down gracefully...');
 
-  // Stop all schedulers
+  // Stop all schedulers and polling
   tokenScheduler.stop();
   productSyncScheduler.stop();
   logCleanupScheduler.stop();
+  merchantPolling.stop();
 
   server.close(() => {
     console.log('✅ Server closed successfully');

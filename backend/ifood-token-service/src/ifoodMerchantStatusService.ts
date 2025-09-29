@@ -8,6 +8,9 @@ import axios from 'axios';
 import { getSupabaseClient, getTokenForUser } from './ifoodTokenService.js';
 import * as schedule from 'node-schedule';
 
+// Get supabase client instance
+const supabase = getSupabaseClient();
+
 interface OpeningHours {
   id?: string;
   dayOfWeek: string;
@@ -593,18 +596,16 @@ export class IFoodMerchantStatusService {
    * List all interruptions for a merchant
    */
   static async listScheduledPauses(
-    merchantId: string,
-    userId: string
+    merchantId: string
   ): Promise<{success: boolean; data: any[]; message?: string}> {
     try {
-      console.log(`🔍 Listing scheduled pauses for merchant: ${merchantId}, user: ${userId}`);
+      console.log(`🔍 Listing scheduled pauses for merchant: ${merchantId}`);
 
       // Get pauses from local database
       const { data: localPauses, error: dbError } = await supabase
         .from('ifood_interruptions')
         .select('*')
         .eq('merchant_id', merchantId)
-        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (dbError) {
@@ -619,14 +620,32 @@ export class IFoodMerchantStatusService {
       console.log(`💾 Found ${localPauses?.length || 0} scheduled pauses in local database`);
 
       // Transform data to match expected format
-      const transformedData = (localPauses || []).map(pause => ({
-        id: pause.ifood_interruption_id || pause.id,
-        start_date: pause.start_date,
-        end_date: pause.end_date,
-        description: pause.description,
-        reason: pause.reason,
-        is_active: pause.is_active && new Date(pause.end_date) > new Date()
-      }));
+      const transformedData = (localPauses || []).map(pause => {
+        const endDate = new Date(pause.end_date);
+        const now = new Date();
+        const isActive = pause.is_active && endDate > now;
+
+        console.log(`🔍 DEBUG pause:`, {
+          id: pause.ifood_interruption_id || pause.id,
+          endDate: pause.end_date,
+          endDateParsed: endDate.toISOString(),
+          now: now.toISOString(),
+          isActiveDB: pause.is_active,
+          isActiveCalculated: isActive,
+          comparison: `${endDate.toISOString()} > ${now.toISOString()} = ${endDate > now}`
+        });
+
+        return {
+          id: pause.ifood_interruption_id || pause.id,
+          startDate: pause.start_date,
+          endDate: pause.end_date,
+          description: pause.description,
+          reason: pause.reason,
+          isActive: isActive
+        };
+      });
+
+      console.log(`📤 Returning transformedData:`, transformedData);
 
       return {
         success: true,
@@ -649,8 +668,7 @@ export class IFoodMerchantStatusService {
   static async removeScheduledPause(
     merchantId: string,
     interruptionId: string,
-    accessToken: string,
-    userId: string
+    accessToken: string
   ): Promise<{success: boolean; message: string}> {
     try {
       console.log(`🗑️ Removing scheduled pause: ${interruptionId} for merchant: ${merchantId}`);
@@ -676,7 +694,6 @@ export class IFoodMerchantStatusService {
         .from('ifood_interruptions')
         .delete()
         .eq('merchant_id', merchantId)
-        .eq('user_id', userId)
         .or(`ifood_interruption_id.eq.${interruptionId},id.eq.${interruptionId}`);
 
       if (dbError) {
@@ -699,6 +716,294 @@ export class IFoodMerchantStatusService {
       return {
         success: false,
         message: `Failed to remove scheduled pause: ${error.response?.data?.message || error.message}`
+      };
+    }
+  }
+
+  /**
+   * Delete opening hours for a specific day
+   */
+  static async deleteOpeningHours(
+    merchantId: string,
+    dayOfWeek: string,      // "MONDAY", "TUESDAY", etc
+    accessToken: string
+  ): Promise<{success: boolean; message: string}> {
+    try {
+      console.log(`🗑️ Deleting opening hours for ${merchantId} - ${dayOfWeek}`);
+
+      // 1. Buscar horários existentes do banco de dados
+      const { data: merchant, error: merchantError } = await supabase
+        .from('ifood_merchants')
+        .select('operating_hours')
+        .eq('merchant_id', merchantId)
+        .single();
+
+      if (merchantError || !merchant) {
+        return {
+          success: false,
+          message: 'Merchant not found in database.'
+        };
+      }
+
+      // 2. Pegar horários existentes do banco
+      let existingShifts: any[] = [];
+      if (merchant.operating_hours && merchant.operating_hours.shifts) {
+        existingShifts = [...merchant.operating_hours.shifts];
+        console.log(`📋 Horários existentes no banco:`, existingShifts);
+      }
+
+      // 3. Verificar se existe horário para este dia
+      const existingDayIndex = existingShifts.findIndex(shift => shift.dayOfWeek === dayOfWeek);
+
+      if (existingDayIndex < 0) {
+        return {
+          success: false,
+          message: `No opening hours found for ${dayOfWeek}`
+        };
+      }
+
+      // 4. Remover o horário do dia específico
+      existingShifts.splice(existingDayIndex, 1);
+      console.log(`🗑️ Removendo horário para ${dayOfWeek}`);
+
+      // 5. Preparar body com os horários restantes
+      const putBody = {
+        storeId: merchantId,
+        shifts: existingShifts
+      };
+
+      console.log(`📤 PUT body (após remoção):`, JSON.stringify(putBody, null, 2));
+
+      // 6. Make PUT request to iFood API
+      const response = await axios.put(
+        this.IFOOD_HOURS_URL.replace('{merchantId}', merchantId),
+        putBody,
+        {
+          headers: {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      console.log(`✅ iFood API response: ${response.status}`);
+
+      // 7. Update our database immediately with new hours
+      try {
+        const { error: updateError } = await supabase
+          .from('ifood_merchants')
+          .update({
+            operating_hours: {
+              shifts: existingShifts
+            },
+            updated_at: new Date().toISOString()
+          })
+          .eq('merchant_id', merchantId);
+
+        if (updateError) {
+          console.error(`⚠️ Warning: Failed to update local database:`, updateError);
+          return {
+            success: true,
+            message: `Opening hours deleted successfully in iFood for ${dayOfWeek}, but local database update failed. Changes will be reflected in next polling cycle.`
+          };
+        }
+
+        console.log(`✅ Local database updated successfully for ${dayOfWeek} deletion`);
+        return {
+          success: true,
+          message: `Opening hours deleted successfully for ${dayOfWeek} in both iFood and local database.`
+        };
+      } catch (dbError) {
+        console.error(`⚠️ Database update error:`, dbError);
+        return {
+          success: true,
+          message: `Opening hours deleted successfully in iFood for ${dayOfWeek}, but local database update failed.`
+        };
+      }
+    } catch (error: any) {
+      console.error(`❌ Error deleting opening hours for ${dayOfWeek}:`, error.response?.data || error.message);
+      return {
+        success: false,
+        message: `Failed to delete opening hours for ${dayOfWeek}: ${error.response?.data?.message || error.message}`
+      };
+    }
+  }
+
+  /**
+   * Fetch interruptions from iFood API
+   */
+  static async fetchInterruptionsFromiFood(
+    merchantId: string,
+    accessToken: string
+  ): Promise<{success: boolean; data?: any[]; message?: string}> {
+    try {
+      console.log(`🔄 Fetching interruptions from iFood API for merchant: ${merchantId}`);
+
+      const response = await axios.get(
+        this.IFOOD_INTERRUPTIONS_URL.replace('{merchantId}', merchantId),
+        {
+          headers: {
+            'accept': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      console.log(`✅ iFood API response: ${response.status}`);
+      console.log(`📥 Response data:`, JSON.stringify(response.data, null, 2));
+
+      // iFood retorna array de interrupções ou pode ser vazio
+      const interruptions = response.data || [];
+
+      return {
+        success: true,
+        data: interruptions,
+        message: `${interruptions.length} interrupções encontradas no iFood`
+      };
+
+    } catch (error: any) {
+      console.error(`❌ Error fetching interruptions from iFood:`, error.response?.data || error.message);
+
+      if (error.response?.status === 404) {
+        // Merchant não tem interrupções ou endpoint não encontrado
+        return {
+          success: true,
+          data: [],
+          message: 'Nenhuma interrupção encontrada no iFood'
+        };
+      }
+
+      return {
+        success: false,
+        message: `Erro ao buscar interrupções do iFood: ${error.response?.data?.message || error.message}`
+      };
+    }
+  }
+
+  /**
+   * Sync interruptions between iFood API and local database
+   */
+  static async syncInterruptionsWithiFood(
+    merchantId: string,
+    accessToken: string
+  ): Promise<{success: boolean; new_interruptions: number; updated_interruptions: number; deleted_interruptions: number; message?: string}> {
+    try {
+      console.log(`🔄 Starting sync for merchant: ${merchantId}`);
+
+      // 1. Buscar interrupções do iFood
+      const ifoodResult = await this.fetchInterruptionsFromiFood(merchantId, accessToken);
+      if (!ifoodResult.success) {
+        return {
+          success: false,
+          new_interruptions: 0,
+          updated_interruptions: 0,
+          deleted_interruptions: 0,
+          message: ifoodResult.message
+        };
+      }
+
+      const ifoodInterruptions = ifoodResult.data || [];
+      console.log(`📥 iFood interruptions:`, ifoodInterruptions.length);
+
+      // 2. Buscar interrupções do banco local
+      const { data: localInterruptions, error: dbError } = await supabase
+        .from('ifood_interruptions')
+        .select('*')
+        .eq('merchant_id', merchantId);
+
+      if (dbError) {
+        console.error('❌ Database error:', dbError);
+        return {
+          success: false,
+          new_interruptions: 0,
+          updated_interruptions: 0,
+          deleted_interruptions: 0,
+          message: `Erro no banco de dados: ${dbError.message}`
+        };
+      }
+
+      console.log(`💾 Local interruptions:`, localInterruptions?.length || 0);
+
+      // 3. Identificar IDs do iFood e do banco local
+      const ifoodIds = new Set(ifoodInterruptions.map((item: any) => item.id));
+      const localIds = new Set(localInterruptions?.map(item => item.ifood_interruption_id) || []);
+
+      console.log(`🔍 iFood IDs:`, Array.from(ifoodIds));
+      console.log(`🔍 Local IDs:`, Array.from(localIds));
+
+      let newCount = 0;
+      let updatedCount = 0;
+      let deletedCount = 0;
+
+      // 4. Adicionar/atualizar interrupções do iFood que não estão no banco ou estão diferentes
+      for (const ifoodItem of ifoodInterruptions) {
+        const existingLocal = localInterruptions?.find(local => local.ifood_interruption_id === ifoodItem.id);
+
+        if (!existingLocal) {
+          // Nova interrupção - adicionar ao banco
+          const { error: insertError } = await supabase
+            .from('ifood_interruptions')
+            .insert({
+              merchant_id: merchantId,
+              ifood_interruption_id: ifoodItem.id,
+              start_date: ifoodItem.start || ifoodItem.startDate,
+              end_date: ifoodItem.end || ifoodItem.endDate,
+              description: ifoodItem.description || 'Interrupção do iFood',
+              reason: ifoodItem.reason,
+              is_active: true,
+              created_at: new Date().toISOString()
+            });
+
+          if (insertError) {
+            console.error('❌ Error inserting interruption:', insertError);
+          } else {
+            newCount++;
+            console.log(`✅ Added new interruption: ${ifoodItem.id}`);
+          }
+        } else {
+          // Interrupção existe - verificar se precisa atualizar
+          // Por agora, apenas marcar como verificada
+          updatedCount++;
+          console.log(`🔄 Verified existing interruption: ${ifoodItem.id}`);
+        }
+      }
+
+      // 5. Remover interrupções do banco que não existem mais no iFood
+      for (const localItem of localInterruptions || []) {
+        if (localItem.ifood_interruption_id && !ifoodIds.has(localItem.ifood_interruption_id)) {
+          const { error: deleteError } = await supabase
+            .from('ifood_interruptions')
+            .delete()
+            .eq('id', localItem.id);
+
+          if (deleteError) {
+            console.error('❌ Error deleting interruption:', deleteError);
+          } else {
+            deletedCount++;
+            console.log(`🗑️ Deleted interruption: ${localItem.ifood_interruption_id}`);
+          }
+        }
+      }
+
+      console.log(`📊 Sync results: +${newCount} ~${updatedCount} -${deletedCount}`);
+
+      return {
+        success: true,
+        new_interruptions: newCount,
+        updated_interruptions: updatedCount,
+        deleted_interruptions: deletedCount,
+        message: `Sincronização concluída: ${newCount} novas, ${updatedCount} atualizadas, ${deletedCount} removidas`
+      };
+
+    } catch (error: any) {
+      console.error(`❌ Error during sync:`, error);
+      return {
+        success: false,
+        new_interruptions: 0,
+        updated_interruptions: 0,
+        deleted_interruptions: 0,
+        message: `Erro durante sincronização: ${error.message}`
       };
     }
   }

@@ -1,7 +1,7 @@
 import { supabase } from '../integrations/supabase/client';
 
 // Service URLs
-const LOCAL_SERVICE_URL = 'http://localhost:8093';
+const LOCAL_SERVICE_URL = 'http://5.161.109.157:8093';
 
 interface MerchantSyncResult {
   success: boolean;
@@ -353,6 +353,28 @@ export async function getMerchantDetail(merchantId: string, userId: string): Pro
     }
 
     console.log(`✅ Successfully fetched and saved merchant: ${data.merchant?.name}`);
+
+    // 🕐 AUTO-FETCH OPENING HOURS: Buscar horários automaticamente após salvar merchant
+    try {
+      console.log('🕐 [AUTO-SYNC] Buscando horários de funcionamento automaticamente...');
+
+      const openingHoursResponse = await fetch(`${LOCAL_SERVICE_URL}/merchants/${merchantId}/opening-hours`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (openingHoursResponse.ok) {
+        const openingHoursData = await openingHoursResponse.json();
+        console.log('✅ [AUTO-SYNC] Horários de funcionamento sincronizados com sucesso:', openingHoursData.data?.length || 0, 'horários');
+      } else {
+        console.log('⚠️ [AUTO-SYNC] Falha ao sincronizar horários, mas merchant foi salvo com sucesso');
+      }
+    } catch (openingHoursError) {
+      console.log('⚠️ [AUTO-SYNC] Erro ao buscar horários, mas merchant foi salvo:', openingHoursError);
+    }
+
     return {
       success: true,
       merchant: data.merchant,

@@ -4,6 +4,7 @@ import {
   Settings,
   Activity,
   Clock,
+  QrCode,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ export const Sidebar = ({ activeModule, onModuleChange }: SidebarProps) => {
     { id: 'ifood-api', label: 'API iFood', icon: Settings },
     { id: 'store-monitoring', label: 'Monitoramento', icon: Activity },
     { id: 'opening-hours', label: 'Horários', icon: Clock },
+    { id: 'qr-code-generator', label: 'QR Code', icon: QrCode },
   ];
 
   return (

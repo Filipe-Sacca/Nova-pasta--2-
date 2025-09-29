@@ -46,7 +46,7 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
       console.log('🔗 [API CALL] URL: http://localhost:3001/products');
       console.log('📤 [REQUEST] Payload:', { user_id: 'c1488646-aca8-4220-aacc-00e7ae3d6490' });
 
-      const response = await fetch('http://localhost:8093/products', {
+      const response = await fetch('http://5.161.109.157:8093/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

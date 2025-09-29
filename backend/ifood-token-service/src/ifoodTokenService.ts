@@ -47,7 +47,7 @@ export class IFoodTokenService {
 
       const { data, error } = await this.supabase
         .from('ifood_tokens')
-        .select('*')
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
         .eq('client_id', clientId)
         .maybeSingle();
 
@@ -175,7 +175,7 @@ export class IFoodTokenService {
       // Check if token exists (buscar por user_id E client_id para evitar duplicatas)
       const { data: existingToken } = await this.supabase
         .from('ifood_tokens')
-        .select('*')
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
         .eq('user_id', storedToken.user_id)
         .eq('client_id', storedToken.client_id)
         .maybeSingle();
@@ -305,7 +305,7 @@ export class IFoodTokenService {
       // Get existing token data to retrieve credentials
       const { data: existingToken, error } = await this.supabase
         .from('ifood_tokens')
-        .select('*')
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
         .eq('client_id', clientId)
         .single();
 
@@ -351,10 +351,10 @@ export class IFoodTokenService {
   async checkTokenExpirationStatus(): Promise<ServiceResponse> {
     try {
       console.log('🔍 Checking expiration status for all tokens...');
-      
+
       const { data: tokens, error } = await this.supabase
         .from('ifood_tokens')
-        .select('*');
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at');
 
       if (error) {
         console.error('❌ Error fetching tokens:', error);
@@ -434,11 +434,11 @@ export class IFoodTokenService {
   async updateAllExpiredTokens(): Promise<ServiceResponse> {
     try {
       console.log('🔍 Fetching all tokens for preventive renewal...');
-      
+
       // Get all tokens
       const { data: tokens, error } = await this.supabase
         .from('ifood_tokens')
-        .select('*');
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at');
 
       if (error) {
         console.error('❌ Error fetching tokens:', error);
@@ -508,10 +508,10 @@ export class IFoodTokenService {
   async updateExpiringTokens(thresholdMinutes: number = 30): Promise<ServiceResponse> {
     try {
       console.log(`🔍 Fetching tokens expiring within ${thresholdMinutes} minutes...`);
-      
+
       const { data: tokens, error } = await this.supabase
         .from('ifood_tokens')
-        .select('*');
+        .select('user_id, client_id, client_secret, access_token, expires_at, created_at');
 
       if (error) {
         console.error('❌ Error fetching tokens:', error);
@@ -602,6 +602,38 @@ export class IFoodTokenService {
   async renewAllTokens(): Promise<ServiceResponse> {
     return this.updateAllExpiredTokens();
   }
+
+  /**
+   * Get all valid tokens from database for polling
+   */
+  async getAllValidTokens(): Promise<{ success: boolean; tokens?: any[]; error?: string }> {
+    try {
+      const { data, error } = await this.supabase
+        .from('ifood_tokens')
+        .select('user_id, access_token, client_id')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error fetching all valid tokens:', error);
+        return {
+          success: false,
+          error: `Database error: ${error.message}`
+        };
+      }
+
+      console.log('✅ Found valid tokens:', data?.length || 0);
+      return {
+        success: true,
+        tokens: data || []
+      };
+    } catch (error: any) {
+      console.error('❌ Error in getAllValidTokens:', error);
+      return {
+        success: false,
+        error: `Internal error: ${error.message}`
+      };
+    }
+  }
 }
 
 /**
@@ -613,7 +645,7 @@ export async function getTokenForUser(userId: string): Promise<StoredToken | nul
     const supabaseClient = getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('ifood_tokens')
-      .select('*')
+      .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -637,7 +669,7 @@ export async function getAnyAvailableToken(): Promise<StoredToken | null> {
     const supabaseClient = getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('ifood_tokens')
-      .select('*')
+      .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
       .limit(1)
       .maybeSingle();
 
@@ -650,5 +682,41 @@ export async function getAnyAvailableToken(): Promise<StoredToken | null> {
   } catch (error) {
     console.error('Error in getAnyAvailableToken:', error);
     return null;
+  }
+}
+
+/**
+ * Get all valid tokens from database for polling
+ */
+export async function getAllValidTokens(): Promise<{ success: boolean; tokens?: any[]; error?: string }> {
+  try {
+    const supabaseUrl = process.env.SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data, error } = await supabase
+      .from('ifood_tokens')
+      .select('user_id, access_token, client_id')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Error fetching all valid tokens:', error);
+      return {
+        success: false,
+        error: `Database error: ${error.message}`
+      };
+    }
+
+    console.log('✅ Found valid tokens:', data?.length || 0);
+    return {
+      success: true,
+      tokens: data || []
+    };
+  } catch (error: any) {
+    console.error('❌ Error in getAllValidTokens:', error);
+    return {
+      success: false,
+      error: `Internal error: ${error.message}`
+    };
   }
 }

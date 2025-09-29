@@ -17,6 +17,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { getOpeningHours, updateOpeningHours as updateOpeningHoursAPI } from '@/services/openingHoursService';
 import { 
   Clock, 
   Plus, 
@@ -70,6 +71,63 @@ interface ScheduledPause {
   reason?: string;
   isActive: boolean;
 }
+
+// Função para formatar data sem conversão de timezone
+const formatDateRaw = (dateString: string): string => {
+  return dateString
+    .replace('T', ' ')
+    .replace(/\.\d{3}Z$/, '')
+    .replace('+00:00', '')
+    .replace(/:\d{2}$/, ''); // Remove segundos se existir
+};
+
+// Função para obter o mês em português (sem conversão de timezone)
+const getMonthName = (dateString: string): string => {
+  console.log('getMonthName input:', dateString);
+  // Extrair ano e mês diretamente da string (YYYY-MM-DD format)
+  const monthNumber = parseInt(dateString.substring(5, 7)) - 1; // 0-indexed
+  console.log('monthNumber:', monthNumber);
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const result = months[monthNumber];
+  console.log('month result:', result);
+  return result;
+};
+
+// Função para calcular duração em horas (sem conversão de timezone)
+const calculateDuration = (startDate: string, endDate: string): string => {
+  // Extrair horas diretamente das strings
+  const startHour = parseInt(startDate.substring(11, 13));
+  const startMinute = parseInt(startDate.substring(14, 16));
+  const endHour = parseInt(endDate.substring(11, 13));
+  const endMinute = parseInt(endDate.substring(14, 16));
+
+  const startTotalMinutes = startHour * 60 + startMinute;
+  const endTotalMinutes = endHour * 60 + endMinute;
+  const diffMinutes = endTotalMinutes - startTotalMinutes;
+  const diffHours = Math.round(diffMinutes / 60);
+
+  return `Fechado por ${diffHours} horas`;
+};
+
+// Função para formatar data no estilo iFood (DD/MM/YYYY) - sem conversão de timezone
+const formatDateIFood = (dateString: string): string => {
+  // Extrair diretamente da string YYYY-MM-DD
+  const year = dateString.substring(0, 4);
+  const month = dateString.substring(5, 7);
+  const day = dateString.substring(8, 10);
+  return `${day}/${month}/${year}`;
+};
+
+// Função para formatar hora no estilo iFood (HHhmm) - sem conversão de timezone
+const formatTimeIFood = (dateString: string): string => {
+  // Extrair diretamente da string HH:MM
+  const hours = dateString.substring(11, 13);
+  const minutes = dateString.substring(14, 16);
+  return `${hours}h${minutes}`;
+};
 
 export default function OpeningHoursManager() {
   const { user } = useAuth();
@@ -155,13 +213,22 @@ export default function OpeningHoursManager() {
 
   // Fetch scheduled pauses for the selected merchant
   const fetchScheduledPauses = async () => {
-    if (!selectedMerchant?.merchant_id || !user?.id) return;
+    console.log('🔍 FRONTEND DEBUG - fetchScheduledPauses called');
+    console.log('🔍 FRONTEND DEBUG - selectedMerchant:', selectedMerchant);
+    console.log('🔍 FRONTEND DEBUG - user:', user);
+
+    if (!selectedMerchant?.merchant_id || !user?.id) {
+      console.log('🚫 FRONTEND DEBUG - Early return: missing merchant_id or user.id');
+      return;
+    }
 
     try {
       setLoadingPauses(true);
+      console.log('🌐 FRONTEND DEBUG - Making request to backend...');
       const response = await fetch(
-        `http://localhost:8093/merchants/${selectedMerchant.merchant_id}/interruptions?userId=${user.id}`
+        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions`
       );
+      console.log('🌐 FRONTEND DEBUG - Response received:', response.status);
       
       if (!response.ok) {
         throw new Error('Falha ao carregar pausas programadas');
@@ -169,14 +236,35 @@ export default function OpeningHoursManager() {
 
       const result = await response.json();
       if (result.success && result.interruptions) {
-        setScheduledPauses(result.interruptions.map((pause: any) => ({
-          id: pause.id,
-          startDate: pause.startDate,
-          endDate: pause.endDate,
-          description: pause.description,
-          reason: pause.reason,
-          isActive: new Date(pause.endDate) > new Date()
-        })));
+        console.log('🔍 FRONTEND DEBUG - Raw data from backend:', result.interruptions);
+
+        const processedPauses = result.interruptions.map((pause: any) => {
+          const endDate = new Date(pause.endDate);
+          const now = new Date();
+          const isActiveFrontend = endDate > now;
+
+          console.log('🔍 FRONTEND DEBUG - Processing pause:', {
+            id: pause.id,
+            endDate: pause.endDate,
+            endDateParsed: endDate.toISOString(),
+            now: now.toISOString(),
+            isActiveBackend: pause.isActive,
+            isActiveFrontend: isActiveFrontend,
+            comparison: `${endDate.toISOString()} > ${now.toISOString()} = ${isActiveFrontend}`
+          });
+
+          return {
+            id: pause.id,
+            startDate: pause.startDate,
+            endDate: pause.endDate,
+            description: pause.description,
+            reason: pause.reason,
+            isActive: pause.isActive // Use backend value
+          };
+        });
+
+        console.log('📤 FRONTEND DEBUG - Final processed pauses:', processedPauses);
+        setScheduledPauses(processedPauses);
       }
     } catch (error) {
       console.error('Error fetching scheduled pauses:', error);
@@ -199,7 +287,7 @@ export default function OpeningHoursManager() {
       console.log('🔄 [SYNC] Sincronizando pausas do iFood API...');
 
       const response = await fetch(
-        `http://localhost:8093/merchants/${selectedMerchant.merchant_id}/interruptions/sync`,
+        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions/sync`,
         {
           method: 'POST',
           headers: {
@@ -274,7 +362,7 @@ export default function OpeningHoursManager() {
       setCancelingPause(pauseId);
       
       const response = await fetch(
-        `http://localhost:8093/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
+        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
         {
           method: 'DELETE',
           headers: {
@@ -431,13 +519,13 @@ export default function OpeningHoursManager() {
 
     // Polling para sincronizar pausas programadas do iFood
     const pausesSyncInterval = setInterval(() => {
-      if (selectedMerchant?.merchant_id && user?.id) {
+      if (selectedMerchant?.merchant_id) {
         syncScheduledPausesFromiFood();
       }
     }, 60000); // A cada 60 segundos (1 minuto)
 
     return () => clearInterval(pausesSyncInterval);
-  }, [selectedMerchant?.merchant_id, user?.id]);
+  }, [selectedMerchant?.merchant_id]);
 
   // Calculate total weekly hours
   const calculateWeeklyHours = () => {
@@ -528,7 +616,7 @@ export default function OpeningHoursManager() {
         return;
       }
 
-      const response = await fetch(`http://localhost:8093/merchants/${selectedMerchant.merchant_id}/interruptions`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -599,7 +687,7 @@ export default function OpeningHoursManager() {
     try {
       setDeletingDay(dayToDelete);
 
-      const response = await fetch(`http://localhost:8093/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -658,7 +746,7 @@ export default function OpeningHoursManager() {
     try {
       setUpdating(true);
 
-      const response = await fetch(`http://localhost:8093/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1060,7 +1148,7 @@ export default function OpeningHoursManager() {
                     onClick={() => syncScheduledPausesFromiFood(true)}
                     variant="outline"
                     disabled={syncingPauses}
-                    className="flex items-center space-x-2 bg-green-50 hover:bg-green-100 border-green-300"
+                    className="flex items-center space-x-2 bg-green-50 hover:bg-green-100 border-green-300 text-gray-800"
                   >
                     <RefreshCw className={`h-4 w-4 ${syncingPauses ? 'animate-spin' : ''}`} />
                     <span>Sincronizar iFood</span>
@@ -1092,51 +1180,81 @@ export default function OpeningHoursManager() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {scheduledPauses.map((pause) => (
-                    <div key={pause.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <Badge className={pause.isActive ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}>
-                              {pause.isActive ? 'Ativa' : 'Expirada'}
-                            </Badge>
-                            <h4 className="font-medium text-foreground">
-                              {pause.description}
-                            </h4>
-                          </div>
-                          
-                          {pause.reason && (
-                            <p className="text-sm text-muted-foreground mb-2">
-                              {pause.reason}
-                            </p>
-                          )}
-                          
-                          <div className="text-sm text-muted-foreground">
-                            <div>Início: {new Date(pause.startDate).toLocaleString('pt-BR')}</div>
-                            <div>Fim: {new Date(pause.endDate).toLocaleString('pt-BR')}</div>
+                <div className="space-y-6">
+                  {/* Agrupar por mês */}
+                  {Object.entries(
+                    scheduledPauses.reduce((groups: Record<string, ScheduledPause[]>, pause) => {
+                      const month = getMonthName(pause.startDate);
+                      if (!groups[month]) groups[month] = [];
+                      groups[month].push(pause);
+                      return groups;
+                    }, {})
+                  )
+                  .sort(([monthA], [monthB]) => {
+                    // Ordenar por ordem dos meses (Janeiro, Fevereiro, etc.)
+                    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+                    return months.indexOf(monthA) - months.indexOf(monthB);
+                  })
+                  .map(([month, monthPauses]) => (
+                    <div key={month} className="space-y-3">
+                      {/* Header do mês */}
+                      <h3 className="text-2xl font-bold text-gray-300">{month}</h3>
+
+                      {/* Lista de pausas do mês */}
+                      {monthPauses.map((pause) => (
+                        <div key={pause.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              {/* Status Badge */}
+                              <div className="flex items-center mb-2">
+                                <Badge className={pause.isActive ? 'bg-orange-100 text-orange-800 border-orange-200' : 'bg-gray-100 text-gray-600 border-gray-200'}>
+                                  {pause.isActive ? 'Ativa' : 'Expirada'}
+                                </Badge>
+                              </div>
+
+                              {/* Título */}
+                              <h4 className="text-lg font-medium text-gray-900 mb-1">
+                                {pause.description || 'Manutenção'}
+                              </h4>
+
+                              {/* Subtítulo com duração */}
+                              <p className="text-sm text-gray-600 mb-3">
+                                {calculateDuration(pause.startDate, pause.endDate)}
+                              </p>
+
+                              {/* Data e horários no estilo iFood */}
+                              <div className="flex items-center text-sm text-gray-700">
+                                <span>{formatDateIFood(pause.startDate)}</span>
+                                <span className="mx-2">de</span>
+                                <span className="font-medium">{formatTimeIFood(pause.startDate)}</span>
+                                <span className="mx-2">→</span>
+                                <span className="mx-2">até</span>
+                                <span className="font-medium">{formatTimeIFood(pause.endDate)}</span>
+                              </div>
+                            </div>
+
+                            {/* Botão de cancelar */}
+                            {pause.isActive && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleCancelPause(pause.id)}
+                                disabled={cancelingPause === pause.id}
+                                className="ml-4"
+                              >
+                                {cancelingPause === pause.id ? (
+                                  <>
+                                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                                    Cancelando...
+                                  </>
+                                ) : (
+                                  'Cancelar'
+                                )}
+                              </Button>
+                            )}
                           </div>
                         </div>
-                        
-                        {pause.isActive && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleCancelPause(pause.id)}
-                            disabled={cancelingPause === pause.id}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            {cancelingPause === pause.id ? (
-                              <>
-                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                                Cancelando...
-                              </>
-                            ) : (
-                              'Cancelar'
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -1413,16 +1531,8 @@ export default function OpeningHoursManager() {
                 <AlertCircle className="h-4 w-4 text-orange-600" />
                 <AlertDescription className="text-orange-800">
                   <strong>Pausa programada:</strong><br />
-                  De: {(() => {
-                    const start = new Date(pauseStartDate);
-                    start.setHours(parseInt(pauseStartTime.split(':')[0]), parseInt(pauseStartTime.split(':')[1]));
-                    return start.toLocaleString('pt-BR');
-                  })()}<br />
-                  Até: {(() => {
-                    const end = new Date(pauseEndDate);
-                    end.setHours(parseInt(pauseEndTime.split(':')[0]), parseInt(pauseEndTime.split(':')[1]));
-                    return end.toLocaleString('pt-BR');
-                  })()}
+                  De: {pauseStartDate?.toISOString().split('T')[0]} {pauseStartTime}<br />
+                  Até: {pauseEndDate?.toISOString().split('T')[0]} {pauseEndTime}
                 </AlertDescription>
               </Alert>
             )}

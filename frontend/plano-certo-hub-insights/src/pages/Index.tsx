@@ -7,6 +7,7 @@ import { MenuManagement } from '@/components/modules/MenuManagement';
 import { IfoodApiConfig } from '@/components/modules/IfoodApiConfig';
 import { StoreMonitoring } from '@/components/modules/StoreMonitoring';
 import OpeningHoursManager from '@/components/modules/OpeningHoursManager';
+import QrCodeGenerator from '@/components/modules/QrCodeGenerator';
 import { DateRange } from 'react-day-picker';
 import { format, subDays } from 'date-fns';
 import { useAuth } from '@/App';
@@ -102,6 +103,8 @@ export default function Index() {
         return <StoreMonitoring />;
       case 'opening-hours':
         return <OpeningHoursManager />;
+      case 'qr-code-generator':
+        return <QrCodeGenerator />;
       default:
         return <MenuManagement />;
     }

@@ -378,7 +378,7 @@ export const MenuManagement = () => {
     setIsLoadingCategories(true);
     try {
       const accessToken = getIfoodAccessToken();
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/categories`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/categories`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -414,7 +414,7 @@ export const MenuManagement = () => {
       const syncParam = forceSync || categoryItems.length === 0 ? '&sync=true' : '';
 
       const response = await fetch(
-        `http://localhost:8093/merchants/${selectedClient}/items?category_id=${categoryId}${syncParam}`, 
+        `http://5.161.109.157:8093/merchants/${selectedClient}/items?category_id=${categoryId}${syncParam}`, 
         {
           method: 'GET',
           headers: {
@@ -517,7 +517,7 @@ export const MenuManagement = () => {
 
       console.log('✅ Token obtido, fazendo requisição para criar categoria...');
 
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/categories`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -643,7 +643,7 @@ Renove o token na página de Tokens do iFood`);
           reader.readAsDataURL(imageFile);
         });
 
-        const uploadResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/image/upload`, {
+        const uploadResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/image/upload`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -726,7 +726,7 @@ Renove o token na página de Tokens do iFood`);
       console.log('🔑 Token sendo usado:', accessToken?.substring(0, 20) + '...');
       console.log('🏪 Merchant ID:', merchantId);
 
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -805,7 +805,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items/price`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items/price`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -847,14 +847,14 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      console.log('📡 Fazendo requisição para:', `http://localhost:8093/merchants/${merchantId}/items/status`);
+      console.log('📡 Fazendo requisição para:', `http://5.161.109.157:8093/merchants/${merchantId}/items/status`);
       console.log('📦 Payload:', {
         
         itemId: itemId,
         status: newStatus
       });
 
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/items/status`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -907,7 +907,7 @@ Renove o token na página de Tokens do iFood`);
       // ETAPA 1: Upload da imagem para iFood e armazenamento do path
       toast.loading('📸 Fazendo upload da imagem para iFood...');
 
-      const uploadResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
+      const uploadResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -929,7 +929,7 @@ Renove o token na página de Tokens do iFood`);
       toast.loading('🔄 Atualizando produto com a imagem...');
 
       // ETAPA 2: Atualizar o produto usando o path da imagem armazenado
-      const updateResponse = await fetch(`http://localhost:8093/merchants/${merchantId}/products/${productId}`, {
+      const updateResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -980,7 +980,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://localhost:8093/merchants/${merchantId}/images`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/images`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1700,7 +1700,7 @@ Renove o token na página de Tokens do iFood`);
                           setIsLoadingCategories(true);
                           try {
                             
-                            const response = await fetch(`http://localhost:8093/merchants/${selectedClient}/categories/sync`, {
+                            const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedClient}/categories/sync`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({})
@@ -3112,7 +3112,7 @@ Renove o token na página de Tokens do iFood`);
                     
                   };
 
-                  const response = await fetch(`http://localhost:8093/merchants/${selectedClient}/items`, {
+                  const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedClient}/items`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',

@@ -192,13 +192,6 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`🔄 Updating item status for merchant: ${merchantId}`);
       console.log(`📦 [REQUEST DETAILS] Full request body:`, JSON.stringify(req.body, null, 2));
 
-      if (!user_id) {
-        return res.status(400).json({
-          success: false,
-          error: 'user_id é obrigatório'
-        });
-      }
-
       // Support both formats: single item or array of items
       let itemsToUpdate: Array<{itemId: string, status: string}> = [];
 
@@ -215,19 +208,29 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
 
       console.log(`📦 Items to update:`, itemsToUpdate);
 
-      // Get access token
+      // Get access token using fixed client_secret
+      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+
+      console.log(`🔑 Buscando token por client_secret: ${TARGET_CLIENT_SECRET.substring(0, 10)}...`);
+
+      console.log(`📊 [DEBUG] Iniciando consulta no Supabase...`);
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
-        .select('access_token')
-        .eq('user_id', user_id)
+        .select('access_token, user_id')
+        .eq('client_secret', TARGET_CLIENT_SECRET)
         .single();
 
+      console.log(`📊 [DEBUG] Consulta Supabase finalizada. Error:`, tokenError, `Data:`, !!tokenData);
+
       if (tokenError || !tokenData) {
+        console.error(`❌ Erro ao buscar token por client_secret:`, tokenError);
         return res.status(401).json({
           success: false,
-          error: 'Token de acesso não encontrado'
+          error: 'Token de acesso não encontrado para o client_secret configurado'
         });
       }
+
+      console.log(`✅ Token encontrado para user_id: ${tokenData.user_id}`);
 
       let successCount = 0;
       let errorCount = 0;
@@ -256,19 +259,29 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
 
           console.log(`📡 [CORRECTED REQUEST] URL: ${correctUrl}`);
           console.log(`📡 [CORRECTED REQUEST] Body:`, correctBody);
+          console.log(`🔑 [TOKEN PREVIEW] Token: ${tokenData.access_token.substring(0, 20)}...`);
 
-          const ifoodResponse = await fetch(correctUrl, {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${tokenData.access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(correctBody)
-          });
+          // Create AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-          console.log(`📡 [IFOOD API RESPONSE] Status: ${ifoodResponse.status}`);
+          try {
+            console.log(`⏰ [IFOOD API] Iniciando requisição com timeout de 15s...`);
 
-          if (ifoodResponse.ok) {
+            const ifoodResponse = await fetch(correctUrl, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(correctBody),
+              signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+            console.log(`📡 [IFOOD API RESPONSE] Status: ${ifoodResponse.status}`);
+
+            if (ifoodResponse.ok) {
             console.log(`✅ Item ${itemId} status updated successfully`);
 
             // Update local database
@@ -307,6 +320,21 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
             });
             errorCount++;
           }
+          } catch (fetchError: any) {
+            clearTimeout(timeoutId);
+            console.error(`❌ [IFOOD API ERROR] Fetch failed for item ${itemId}:`, fetchError.message);
+
+            if (fetchError.name === 'AbortError') {
+              console.error(`⏰ [TIMEOUT] Requisição para iFood expirou após 15s`);
+            }
+
+            results.push({
+              itemId,
+              success: false,
+              error: fetchError.name === 'AbortError' ? 'Timeout na API do iFood (15s)' : `Fetch error: ${fetchError.message}`
+            });
+            errorCount++;
+          }
         } catch (itemError: any) {
           console.error(`❌ Error updating item ${item.itemId}:`, itemError);
           results.push({
@@ -340,4 +368,4 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
   return router;
 }
 
-export default createImageRoutes;
+// Export removed - function already exported in declaration

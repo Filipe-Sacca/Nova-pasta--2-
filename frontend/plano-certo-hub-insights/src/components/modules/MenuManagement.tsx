@@ -992,15 +992,13 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/images`, {
+      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-
-          item_id: itemId,
           image: base64Image
         })
       });

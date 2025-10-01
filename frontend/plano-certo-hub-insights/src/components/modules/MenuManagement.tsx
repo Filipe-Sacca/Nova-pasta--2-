@@ -962,14 +962,36 @@ Renove o token na página de Tokens do iFood`);
       const updateResult = await updateResponse.json();
 
       toast.dismiss();
+      toast.loading('🔄 Sincronizando imagem do iFood...');
+
+      // ETAPA 3: Fazer GET para sincronizar a URL completa da imagem do iFood
+      console.log(`🔄 [GET-SYNC] Iniciando GET para produto ${productId}...`);
+
+      const syncResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const syncResult = await syncResponse.json();
+      console.log(`📦 [GET-SYNC] Response:`, syncResult);
+
+      toast.dismiss();
 
       if (updateResult.workflow === 'database-image-path') {
-        toast.success('✅ Imagem enviada para iFood e produto atualizado com sucesso!');
-        console.log('🎯 Two-step workflow completed:', {
-          step1_upload: uploadResult,
-          step2_update: updateResult,
-          image_path: updateResult.image_path
-        });
+        if (syncResponse.ok && syncResult.success) {
+          toast.success('✅ Imagem enviada, produto atualizado e sincronizada com sucesso!');
+          console.log('🎯 Three-step workflow completed:', {
+            step1_upload: uploadResult,
+            step2_update: updateResult,
+            step3_sync: syncResult,
+            image_url: syncResult.data?.imageUrl
+          });
+        } else {
+          toast.success('✅ Imagem enviada e produto atualizado!');
+          console.warn('⚠️ Sincronização falhou:', syncResult.error);
+        }
       } else {
         toast.success('Processo concluído com sucesso!');
       }

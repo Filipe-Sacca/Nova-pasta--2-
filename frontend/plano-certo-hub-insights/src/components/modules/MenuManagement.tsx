@@ -1004,14 +1004,19 @@ Renove o token na página de Tokens do iFood`);
       });
 
       const result = await response.json();
+      console.log('📦 POST response:', { ok: response.ok, status: response.status, result });
 
       if (response.ok && result.success) {
+        console.log('✅ POST upload-image succeeded, starting GET sync...');
         toast.success('✅ Imagem enviada com sucesso!');
 
         // STEP 2: Fazer GET para sincronizar a URL da imagem do iFood para o banco de dados
-        console.log(`🔄 Sincronizando imagem do iFood para produto ${productId}...`);
+        console.log(`🔄 [GET-SYNC] Iniciando GET para produto ${productId} no merchant ${merchantId}...`);
 
-        const syncResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`, {
+        const syncUrl = `http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`;
+        console.log(`📡 [GET-SYNC] Calling: ${syncUrl}`);
+
+        const syncResponse = await fetch(syncUrl, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -1019,13 +1024,17 @@ Renove o token na página de Tokens do iFood`);
           }
         });
 
+        console.log(`📥 [GET-SYNC] Response status: ${syncResponse.status}`);
+
         const syncResult = await syncResponse.json();
+        console.log(`📦 [GET-SYNC] Response data:`, syncResult);
 
         if (syncResponse.ok && syncResult.success) {
-          console.log(`✅ Imagem sincronizada:`, syncResult.data.imageUrl);
+          console.log(`✅ [GET-SYNC] Imagem sincronizada com URL:`, syncResult.data?.imageUrl);
           toast.success('🖼️ Imagem sincronizada com sucesso!');
         } else {
-          console.warn(`⚠️ Falha ao sincronizar imagem:`, syncResult.error);
+          console.warn(`⚠️ [GET-SYNC] Falha:`, syncResult.error);
+          toast.warning('⚠️ Upload OK, mas sincronização falhou');
         }
 
         // Atualizar lista de itens

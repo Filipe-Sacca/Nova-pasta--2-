@@ -984,11 +984,11 @@ Renove o token na página de Tokens do iFood`);
   };
 
   // Função para fazer upload de imagem
-  const handleUploadImage = async (itemId: string, base64Image: string) => {
+  const handleUploadImage = async (itemId: string, productId: string, base64Image: string) => {
     if (!selectedClient) return;
 
     try {
-      
+
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
@@ -999,7 +999,7 @@ Renove o token na página de Tokens do iFood`);
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          
+
           item_id: itemId,
           image: base64Image
         })
@@ -1009,6 +1009,27 @@ Renove o token na página de Tokens do iFood`);
 
       if (response.ok && result.success) {
         toast.success('✅ Imagem enviada com sucesso!');
+
+        // STEP 2: Fazer GET para sincronizar a URL da imagem do iFood para o banco de dados
+        console.log(`🔄 Sincronizando imagem do iFood para produto ${productId}...`);
+
+        const syncResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        const syncResult = await syncResponse.json();
+
+        if (syncResponse.ok && syncResult.success) {
+          console.log(`✅ Imagem sincronizada:`, syncResult.data.imageUrl);
+          toast.success('🖼️ Imagem sincronizada com sucesso!');
+        } else {
+          console.warn(`⚠️ Falha ao sincronizar imagem:`, syncResult.error);
+        }
+
         // Atualizar lista de itens
         if (selectedCategoryForProducts) {
           fetchCategoryItems(selectedCategoryForProducts.category_id);
@@ -2117,7 +2138,7 @@ Renove o token na página de Tokens do iFood`);
                                 const reader = new FileReader();
                                 reader.onloadend = () => {
                                   const base64 = reader.result as string;
-                                  handleUploadImage(item.item_id, base64);
+                                  handleUploadImage(item.item_id, item.product_id, base64);
                                 };
                                 reader.readAsDataURL(file);
                               }

@@ -169,7 +169,6 @@ export const MenuManagement = () => {
     name: '',
     description: '',
     price: '',
-    categoryId: '',
     status: 'AVAILABLE' as 'AVAILABLE' | 'UNAVAILABLE'
   });
   
@@ -822,7 +821,23 @@ Renove o token na página de Tokens do iFood`);
       const result = await response.json();
 
       if (response.ok && result.success) {
-        toast.success('✅ Preço atualizado com sucesso!');
+        // Atualizar banco de dados local
+        const { error: dbError } = await supabase
+          .from('products')
+          .update({
+            price: parseFloat(newPrice),
+            updated_at: new Date().toISOString()
+          })
+          .eq('item_id', itemId)
+          .eq('merchant_id', merchantId);
+
+        if (dbError) {
+          console.error('Erro ao atualizar preço no banco de dados:', dbError);
+          toast.warning('Preço atualizado no iFood, mas houve erro ao atualizar localmente');
+        } else {
+          toast.success('✅ Preço atualizado com sucesso!');
+        }
+
         forceRefresh();
       } else {
         toast.error(`❌ Erro ao atualizar preço: ${result.error}`);
@@ -959,11 +974,8 @@ Renove o token na página de Tokens do iFood`);
         toast.success('Processo concluído com sucesso!');
       }
 
-      // Recarregar produtos e imagens
+      // Recarregar produtos
       await forceRefresh();
-      if (selectedClient) {
-        await fetchProductImages(selectedClient);
-      }
 
     } catch (error: any) {
       toast.dismiss();
@@ -1456,7 +1468,6 @@ Renove o token na página de Tokens do iFood`);
                                     name: product.name,
                                     description: product.description || '',
                                     price: product.price?.toString() || '',
-                                    categoryId: product.ifood_category_id || '',
                                     status: isProductActive(product.is_active) ? 'AVAILABLE' : 'UNAVAILABLE'
                                   });
                                   setIsEditSingleProductOpen(true);
@@ -2914,60 +2925,36 @@ Renove o token na página de Tokens do iFood`);
               </div>
             </div>
 
-            {/* Categoria e Status */}
+            {/* Status */}
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">
-                Categoria e Disponibilidade
+                Disponibilidade
               </h3>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-category">Categoria *</Label>
-                  <Select
-                    value={editProductForm.categoryId}
-                    onValueChange={(value) => setEditProductForm(prev => ({ ...prev, categoryId: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category.category_id} value={category.category_id}>
-                          <div className="flex items-center gap-2">
-                            <Package className="h-4 w-4" />
-                            {category.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="edit-status">Status do Produto</Label>
-                  <Select
-                    value={editProductForm.status}
-                    onValueChange={(value) => setEditProductForm(prev => ({ ...prev, status: value as 'AVAILABLE' | 'UNAVAILABLE' }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="AVAILABLE">
-                        <div className="flex items-center gap-2">
-                          <Eye className="h-4 w-4 text-green-500" />
-                          Disponível
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="UNAVAILABLE">
-                        <div className="flex items-center gap-2">
-                          <EyeOff className="h-4 w-4 text-red-500" />
-                          Indisponível
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Status do Produto</Label>
+                <Select
+                  value={editProductForm.status}
+                  onValueChange={(value) => setEditProductForm(prev => ({ ...prev, status: value as 'AVAILABLE' | 'UNAVAILABLE' }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AVAILABLE">
+                      <div className="flex items-center gap-2">
+                        <Eye className="h-4 w-4 text-green-500" />
+                        Disponível
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="UNAVAILABLE">
+                      <div className="flex items-center gap-2">
+                        <EyeOff className="h-4 w-4 text-red-500" />
+                        Indisponível
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -2989,15 +2976,9 @@ Renove o token na página de Tokens do iFood`);
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-400">Categoria:</span>
-                    <span className="font-medium">
-                      {categories.find(cat => cat.category_id === editProductForm.categoryId)?.name || 'Não selecionada'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Status:</span>
                     <Badge className={
-                      editProductForm.status === 'AVAILABLE' 
+                      editProductForm.status === 'AVAILABLE'
                         ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                         : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                     }>
@@ -3013,8 +2994,8 @@ Renove o token na página de Tokens do iFood`);
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 border-b pb-2">
                 Ações Rápidas
               </h3>
-              
-              <div className="grid grid-cols-3 gap-3">
+
+              <div className="grid grid-cols-2 gap-3">
                 <Button
                   type="button"
                   variant="outline"
@@ -3057,25 +3038,6 @@ Renove o token na página de Tokens do iFood`);
                     </>
                   )}
                 </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-300 hover:border-purple-400 h-12"
-                  onClick={() => {
-                    if (selectedProductForEdit && editProductForm.categoryId !== selectedProductForEdit.ifood_category_id) {
-                      const newCategoryName = categories.find(cat => cat.category_id === editProductForm.categoryId)?.name;
-                      if (confirm(`Mover produto "${selectedProductForEdit.name}" para categoria "${newCategoryName}"?`)) {
-                        // Implementar mudança de categoria aqui
-                        toast.info('Funcionalidade de mudança de categoria será implementada');
-                      }
-                    }
-                  }}
-                  disabled={editProductForm.categoryId === selectedProductForEdit?.ifood_category_id}
-                >
-                  <Package className="h-4 w-4 mr-2" />
-                  Mover Categoria
-                </Button>
               </div>
             </div>
           </div>
@@ -3098,18 +3060,21 @@ Renove o token na página de Tokens do iFood`);
                     item: {
                       id: selectedProductForEdit.item_id,
                       productId: selectedProductForEdit.product_id,
-                      categoryId: editProductForm.categoryId,
+                      categoryId: selectedProductForEdit.ifood_category_id,
                       status: editProductForm.status,
                       price: {
                         value: parseFloat(editProductForm.price),
                         originalValue: parseFloat(editProductForm.price)
-                      }
+                      },
+                      imagePath: selectedProductForEdit.imagePath || ''
                     },
                     products: [{
+                      id: selectedProductForEdit.product_id,
                       name: editProductForm.name,
-                      description: editProductForm.description
+                      description: editProductForm.description,
+                      imagePath: selectedProductForEdit.imagePath || ''
                     }],
-                    
+
                   };
 
                   const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedClient}/items`, {
@@ -3121,7 +3086,27 @@ Renove o token na página de Tokens do iFood`);
                   });
 
                   if (response.ok) {
-                    toast.success('Produto atualizado com sucesso!');
+                    // Atualizar banco de dados local
+                    const { error: dbError } = await supabase
+                      .from('products')
+                      .update({
+                        name: editProductForm.name,
+                        description: editProductForm.description,
+                        price: parseFloat(editProductForm.price),
+                        is_active: editProductForm.status,
+                        imagePath: selectedProductForEdit.imagePath || '',
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('item_id', selectedProductForEdit.item_id)
+                      .eq('merchant_id', selectedClient);
+
+                    if (dbError) {
+                      console.error('Erro ao atualizar banco de dados:', dbError);
+                      toast.warning('Produto atualizado no iFood, mas houve erro ao atualizar localmente');
+                    } else {
+                      toast.success('Produto atualizado com sucesso!');
+                    }
+
                     setIsEditSingleProductOpen(false);
                     forceRefresh(); // Atualizar lista de produtos
                   } else {
@@ -3132,7 +3117,7 @@ Renove o token na página de Tokens do iFood`);
                 }
               }}
               className="bg-blue-600 hover:bg-blue-700"
-              disabled={!editProductForm.name || !editProductForm.price || !editProductForm.categoryId}
+              disabled={!editProductForm.name || !editProductForm.price}
             >
               <Save className="h-4 w-4 mr-2" />
               Salvar Alterações

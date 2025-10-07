@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +46,7 @@ import {
 import { FilterBar } from '@/components/ui/filter-bar';
 import { useMerchantProducts, useAvailableMerchants } from '@/hooks/useMerchantProducts';
 import { useIfoodTokens } from '@/hooks/useIfoodTokens';
+import { useIfoodCategories } from '@/hooks/useIfoodCategories';
 import { useAuth } from '@/App';
 
 // Helper function to normalize status
@@ -107,8 +109,6 @@ export const MenuManagement = () => {
   });
 
   // Estados para gerenciar categorias existentes
-  const [categories, setCategories] = useState<any[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [selectedMerchantForCategories, setSelectedMerchantForCategories] = useState('');
   
   // Estados para gerenciar itens do cardápio
@@ -127,6 +127,39 @@ export const MenuManagement = () => {
     imagePath: ''
   });
   
+  // Funções para formatação de moeda
+  const formatCurrency = (value: string): string => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+
+    // Se vazio, retorna vazio
+    if (!numbers) return '';
+
+    // Converte para número e divide por 100 para ter centavos
+    const amount = parseInt(numbers) / 100;
+
+    // Formata como moeda brasileira
+    return amount.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2
+    });
+  };
+
+  const parseCurrency = (value: string): string => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+
+    // Se vazio, retorna "0"
+    if (!numbers) return '0';
+
+    // Converte para número e divide por 100 para ter formato decimal
+    const amount = parseInt(numbers) / 100;
+
+    // Retorna como string com 2 decimais
+    return amount.toFixed(2);
+  };
+
   // Estado para gerenciar produtos vinculados à categoria
   const [selectedCategoryForProducts, setSelectedCategoryForProducts] = useState<any>(null);
   const [isProductManagementOpen, setIsProductManagementOpen] = useState(false);
@@ -180,6 +213,9 @@ export const MenuManagement = () => {
   // Buscar merchants disponíveis
   const { data: availableMerchants } = useAvailableMerchants();
 
+  // Buscar categorias do merchant selecionado
+  const { categories, isLoading: isLoadingCategories, forceRefresh: refreshCategories } = useIfoodCategories(selectedClient);
+
   // Função simplificada para processar imagens dos produtos
   const processProductImages = () => {
     console.log('🖼️ Processando imagens dos produtos...');
@@ -206,10 +242,9 @@ export const MenuManagement = () => {
     setProductImages(imageMap);
   };
 
-  // Buscar categorias quando merchant for selecionado
+  // Atualizar merchant selecionado para categorias
   useEffect(() => {
     if (selectedClient) {
-      fetchCategories(selectedClient);
       setSelectedMerchantForCategories(selectedClient);
     }
   }, [selectedClient]);
@@ -370,37 +405,6 @@ export const MenuManagement = () => {
     return '';
   };
 
-  // Função para buscar categorias existentes
-  const fetchCategories = async (merchantId: string) => {
-    if (!merchantId) return;
-
-    setIsLoadingCategories(true);
-    try {
-      const accessToken = getIfoodAccessToken();
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/categories`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setCategories(result.data || []);
-        console.log(`✅ ${result.count || 0} categorias encontradas para merchant: ${merchantId}`);
-      } else {
-        console.error('❌ Erro ao buscar categorias:', result.error);
-        setCategories([]);
-      }
-    } catch (error: any) {
-      console.error('❌ Erro ao buscar categorias:', error);
-      setCategories([]);
-    } finally {
-      setIsLoadingCategories(false);
-    }
-  };
 
   // Função para buscar itens de uma categoria específica
   const fetchCategoryItems = async (categoryId: string, forceSync: boolean = false) => {
@@ -413,7 +417,7 @@ export const MenuManagement = () => {
       const syncParam = forceSync || categoryItems.length === 0 ? '&sync=true' : '';
 
       const response = await fetch(
-        `http://5.161.109.157:8093/merchants/${selectedClient}/items?category_id=${categoryId}${syncParam}`, 
+        `${API_BASE_URL}/merchants/${selectedClient}/items?category_id=${categoryId}${syncParam}`, 
         {
           method: 'GET',
           headers: {
@@ -516,7 +520,7 @@ export const MenuManagement = () => {
 
       console.log('✅ Token obtido, fazendo requisição para criar categoria...');
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/categories`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/categories`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -548,12 +552,10 @@ export const MenuManagement = () => {
         // Fechar modal
         setIsCreateCategoryOpen(false);
 
-        // Atualizar produtos para refletir mudanças
+        // Atualizar produtos e categorias para refletir mudanças
         forceRefresh();
-        
-        // Atualizar lista de categorias
-        fetchCategories(merchantId);
-        
+        refreshCategories();
+
       } else {
         // Melhor tratamento de erros específicos
         if (response.status === 400) {
@@ -642,7 +644,7 @@ Renove o token na página de Tokens do iFood`);
           reader.readAsDataURL(imageFile);
         });
 
-        const uploadResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/image/upload`, {
+        const uploadResponse = await fetch(`${API_BASE_URL}/merchants/${merchantId}/image/upload`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -659,12 +661,18 @@ Renove o token na página de Tokens do iFood`);
         }
       }
 
-      // Gerar IDs únicos para novo produto ou usar existentes para edição
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 9);
-      
-      const itemId = editingProduct?.item_id || `item_${timestamp}_${randomString}`;
-      const productId = editingProduct?.product_id || `prod_${timestamp}_${randomString}`;
+      // Função para gerar UUID v4 válido
+      const generateUUID = () => {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
+      // Gerar IDs únicos UUID válidos para novo produto ou usar existentes para edição
+      const itemId = editingProduct?.item_id || generateUUID();
+      const productId = editingProduct?.product_id || generateUUID();
 
       // Função utilitária para remover campos vazios/undefined
       const removeEmptyFields = (obj: any): any => {
@@ -697,20 +705,33 @@ Renove o token na página de Tokens do iFood`);
       };
 
       // Preparar dados do item conforme estrutura do iFood
+      const categoryId = itemForm.categoryId || selectedCategoryForProducts?.category_id;
+
+      console.log('🔍 Debug categoryId:', {
+        'itemForm.categoryId': itemForm.categoryId,
+        'selectedCategoryForProducts': selectedCategoryForProducts,
+        'categoryId final': categoryId
+      });
+
+      if (!categoryId) {
+        toast.error('❌ Categoria não selecionada!');
+        return;
+      }
+
       const rawItemData = {
         item: {
           id: itemId,
           productId: productId,
-          // Agora category_id JÁ É o ID do iFood!
-          categoryId: itemForm.categoryId || selectedCategoryForProducts?.category_id,
+          categoryId: categoryId, // OBRIGATÓRIO - nunca pode ser null/undefined
           status: itemForm.status,
           price: {
-            value: parseFloat(itemForm.price),
-            originalValue: parseFloat(itemForm.originalPrice || itemForm.price)
+            value: parseFloat(parseCurrency(itemForm.price)),
+            originalValue: parseFloat(parseCurrency(itemForm.originalPrice || itemForm.price))
           },
           externalCode: itemForm.externalCode || undefined
         },
         products: [{
+          id: productId,
           name: itemForm.name,
           description: itemForm.description || '',
           imagePath: imagePath || ''
@@ -721,11 +742,20 @@ Renove o token na página de Tokens do iFood`);
       // Filtrar apenas campos preenchidos
       const itemData = removeEmptyFields(rawItemData);
 
-      console.log('📤 Enviando para iFood:', itemData);
+      console.log('📦 Dados ANTES de removeEmptyFields:', rawItemData);
+      console.log('📤 Dados DEPOIS de removeEmptyFields:', itemData);
+      console.log('🔍 categoryId no item final:', itemData?.item?.categoryId);
       console.log('🔑 Token sendo usado:', accessToken?.substring(0, 20) + '...');
       console.log('🏪 Merchant ID:', merchantId);
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items`, {
+      // Verificar se categoryId está presente
+      if (!itemData?.item?.categoryId) {
+        console.error('❌ ERRO: categoryId foi removido pelo removeEmptyFields!');
+        toast.error('❌ Erro: categoryId não pode ser vazio');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/items`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -744,7 +774,31 @@ Renove o token na página de Tokens do iFood`);
 
       if (response.ok && result.success) {
         toast.success(editingProduct ? '✅ Produto atualizado com sucesso!' : '✅ Produto adicionado com sucesso!');
-        
+
+        // GET do produto para sincronizar com banco de dados
+        if (!editingProduct) {
+          try {
+            console.log('🔄 Buscando produto criado do iFood para sincronizar...');
+
+            const getResponse = await fetch(`${API_BASE_URL}/merchants/${merchantId}/products/${itemId}`, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`
+              }
+            });
+
+            if (getResponse.ok) {
+              const productData = await getResponse.json();
+              console.log('✅ Produto sincronizado com banco de dados:', productData);
+              toast.success('✅ Produto sincronizado com banco de dados!');
+            } else {
+              console.warn('⚠️ Não foi possível sincronizar produto com banco');
+            }
+          } catch (syncError) {
+            console.error('❌ Erro ao sincronizar produto:', syncError);
+          }
+        }
+
         // Resetar formulário
         setItemForm({
           name: '',
@@ -804,7 +858,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items/price`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/items/price`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -862,14 +916,14 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      console.log('📡 Fazendo requisição para:', `http://5.161.109.157:8093/merchants/${merchantId}/items/status`);
+      console.log('📡 Fazendo requisição para:', `${API_BASE_URL}/merchants/${merchantId}/items/status`);
       console.log('📦 Payload:', {
         
         itemId: itemId,
         status: newStatus
       });
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/items/status`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/items/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -922,7 +976,7 @@ Renove o token na página de Tokens do iFood`);
       // ETAPA 1: Upload da imagem para iFood e armazenamento do path
       toast.loading('📸 Fazendo upload da imagem para iFood...');
 
-      const uploadResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
+      const uploadResponse = await fetch(`${API_BASE_URL}/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -944,7 +998,7 @@ Renove o token na página de Tokens do iFood`);
       toast.loading('🔄 Atualizando produto com a imagem...');
 
       // ETAPA 2: Atualizar o produto usando o path da imagem armazenado
-      const updateResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}`, {
+      const updateResponse = await fetch(`${API_BASE_URL}/merchants/${merchantId}/products/${productId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -967,7 +1021,7 @@ Renove o token na página de Tokens do iFood`);
       // ETAPA 3: Fazer GET para sincronizar a URL completa da imagem do iFood
       console.log(`🔄 [GET-SYNC] Iniciando GET para produto ${productId}...`);
 
-      const syncResponse = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`, {
+      const syncResponse = await fetch(`${API_BASE_URL}/merchants/${merchantId}/product/${productId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -1014,7 +1068,7 @@ Renove o token na página de Tokens do iFood`);
       const accessToken = getIfoodAccessToken();
       const merchantId = selectedClient;
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${merchantId}/products/${productId}/upload-image`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/products/${productId}/upload-image`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1035,7 +1089,7 @@ Renove o token na página de Tokens do iFood`);
         // STEP 2: Fazer GET para sincronizar a URL da imagem do iFood para o banco de dados
         console.log(`🔄 [GET-SYNC] Iniciando GET para produto ${productId} no merchant ${merchantId}...`);
 
-        const syncUrl = `http://5.161.109.157:8093/merchants/${merchantId}/product/${productId}`;
+        const syncUrl = `${API_BASE_URL}/merchants/${merchantId}/product/${productId}`;
         console.log(`📡 [GET-SYNC] Calling: ${syncUrl}`);
 
         const syncResponse = await fetch(syncUrl, {
@@ -1150,19 +1204,32 @@ Renove o token na página de Tokens do iFood`);
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="item-category">Categoria *</Label>
-                            <Select 
-                              value={itemForm.categoryId} 
+                            <Select
+                              value={itemForm.categoryId}
                               onValueChange={(value) => setItemForm({...itemForm, categoryId: value})}
+                              disabled={isLoadingCategories}
                             >
                               <SelectTrigger id="item-category">
-                                <SelectValue placeholder="Selecione uma categoria" />
+                                <SelectValue placeholder={
+                                  isLoadingCategories
+                                    ? "Carregando categorias..."
+                                    : categories.length === 0
+                                      ? "Nenhuma categoria encontrada"
+                                      : "Selecione uma categoria"
+                                } />
                               </SelectTrigger>
                               <SelectContent>
-                                {categories.map((cat) => (
-                                  <SelectItem key={cat.category_id} value={cat.category_id}>
-                                    {cat.name}
-                                  </SelectItem>
-                                ))}
+                                {categories.length === 0 ? (
+                                  <div className="p-2 text-sm text-gray-500">
+                                    Nenhuma categoria disponível. Crie uma categoria primeiro.
+                                  </div>
+                                ) : (
+                                  categories.map((cat) => (
+                                    <SelectItem key={cat.category_id} value={cat.category_id}>
+                                      {cat.name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -1183,22 +1250,26 @@ Renove o token na página de Tokens do iFood`);
                             <Label htmlFor="item-price">Preço *</Label>
                             <Input
                               id="item-price"
-                              type="number"
-                              step="0.01"
+                              type="text"
                               value={itemForm.price}
-                              onChange={(e) => setItemForm({...itemForm, price: e.target.value})}
-                              placeholder="0.00"
+                              onChange={(e) => {
+                                const formatted = formatCurrency(e.target.value);
+                                setItemForm({...itemForm, price: formatted});
+                              }}
+                              placeholder="R$ 0,00"
                             />
                           </div>
                           <div className="space-y-2">
                             <Label htmlFor="item-original-price">Preço Original</Label>
                             <Input
                               id="item-original-price"
-                              type="number"
-                              step="0.01"
+                              type="text"
                               value={itemForm.originalPrice}
-                              onChange={(e) => setItemForm({...itemForm, originalPrice: e.target.value})}
-                              placeholder="0.00"
+                              onChange={(e) => {
+                                const formatted = formatCurrency(e.target.value);
+                                setItemForm({...itemForm, originalPrice: formatted});
+                              }}
+                              placeholder="R$ 0,00"
                             />
                           </div>
                         </div>
@@ -1761,7 +1832,7 @@ Renove o token na página de Tokens do iFood`);
                           setIsLoadingCategories(true);
                           try {
                             
-                            const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedClient}/categories/sync`, {
+                            const response = await fetch(`${API_BASE_URL}/merchants/${selectedClient}/categories/sync`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({})
@@ -1770,12 +1841,11 @@ Renove o token na página de Tokens do iFood`);
                             
                             if (result.success) {
                               toast.success(`✅ Sincronização concluída!
-                              
+
 📊 Resultado:
 • Total: ${result.data?.total || 0}
 • Novas: ${result.data?.new || 0}
 • Atualizadas: ${result.data?.updated || 0}`);
-                              fetchCategories(selectedClient);
                             } else {
                               toast.error(`❌ Erro na sincronização: ${result.error}`);
                             }
@@ -1791,15 +1861,6 @@ Renove o token na página de Tokens do iFood`);
                         Sincronizar iFood
                       </Button>
                       
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => selectedClient && fetchCategories(selectedClient)}
-                        disabled={isLoadingCategories || !selectedClient}
-                      >
-                        <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCategories ? 'animate-spin' : ''}`} />
-                        Atualizar Lista
-                      </Button>
                     </div>
                   </div>
 
@@ -3127,7 +3188,7 @@ Renove o token na página de Tokens do iFood`);
 
                   };
 
-                  const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedClient}/items`, {
+                  const response = await fetch(`${API_BASE_URL}/merchants/${selectedClient}/items`, {
                     method: 'PUT',
                     headers: {
                       'Content-Type': 'application/json',

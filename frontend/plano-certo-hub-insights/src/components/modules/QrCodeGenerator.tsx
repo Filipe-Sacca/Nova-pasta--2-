@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { API_BASE_URL } from '../../config/api';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, QrCode, Download, Eye } from "lucide-react";
 
@@ -32,13 +33,12 @@ const QrCodeGenerator = () => {
     setQrCodeImageUrl('');
 
     try {
-      // Detectar a URL base automaticamente
-      const baseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8093' : 'http://5.161.109.157:8093';
-      const apiUrl = `${baseUrl}/merchants/checkin-qrcode`;
+      // Usar a URL configurada
+      const apiUrl = `${API_BASE_URL}/merchants/checkin-qrcode`;
 
       console.log('🔄 Fazendo fetch para:', apiUrl);
       console.log('🌐 Hostname atual:', window.location.hostname);
-      console.log('🌐 URL base detectada:', baseUrl);
+      console.log('🌐 URL base detectada:', API_BASE_URL);
 
       const response = await fetch(apiUrl, {
         method: 'POST',

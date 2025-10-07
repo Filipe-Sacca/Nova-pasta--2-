@@ -1406,9 +1406,8 @@ export class IFoodProductService {
 
       return {
         success: true,
-        data: imageResults,
-        message: `${imageResults.length} imagens encontradas`
-      };
+        data: imageResults
+      } as ServiceResponse;
 
     } catch (error: any) {
       console.error('❌ Erro ao buscar product images:', error);

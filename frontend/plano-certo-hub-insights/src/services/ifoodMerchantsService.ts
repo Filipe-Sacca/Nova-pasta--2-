@@ -1,7 +1,8 @@
 import { supabase } from '../integrations/supabase/client';
+import { API_BASE_URL } from '../config/api';
 
 // Service URLs
-const LOCAL_SERVICE_URL = 'http://5.161.109.157:8093';
+const LOCAL_SERVICE_URL = API_BASE_URL;
 
 interface MerchantSyncResult {
   success: boolean;

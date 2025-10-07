@@ -1,3 +1,4 @@
+import { API_BASE_URL } from '../../config/api';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/App';
 import { Card, CardContent } from '@/components/ui/card';
@@ -226,7 +227,7 @@ export default function OpeningHoursManager() {
       setLoadingPauses(true);
       console.log('🌐 FRONTEND DEBUG - Making request to backend...');
       const response = await fetch(
-        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions`
+        `${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/interruptions`
       );
       console.log('🌐 FRONTEND DEBUG - Response received:', response.status);
       
@@ -287,7 +288,7 @@ export default function OpeningHoursManager() {
       console.log('🔄 [SYNC] Sincronizando pausas do iFood API...');
 
       const response = await fetch(
-        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions/sync`,
+        `${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/interruptions/sync`,
         {
           method: 'POST',
           headers: {
@@ -362,7 +363,7 @@ export default function OpeningHoursManager() {
       setCancelingPause(pauseId);
       
       const response = await fetch(
-        `http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
+        `${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/interruptions/${pauseId}`,
         {
           method: 'DELETE',
           headers: {
@@ -616,7 +617,7 @@ export default function OpeningHoursManager() {
         return;
       }
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/interruptions`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/interruptions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -687,7 +688,7 @@ export default function OpeningHoursManager() {
     try {
       setDeletingDay(dayToDelete);
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/opening-hours/delete`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -746,7 +747,7 @@ export default function OpeningHoursManager() {
     try {
       setUpdating(true);
 
-      const response = await fetch(`http://5.161.109.157:8093/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
+      const response = await fetch(`${API_BASE_URL}/merchants/${selectedMerchant.merchant_id}/opening-hours`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

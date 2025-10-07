@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  backend:
+    image: paxley/plano-certo-backend:1.0.5
+    networks:
+      - network_public
+    environment:
+      # Supabase Configuration
+      - SUPABASE_URL=https://icovzxzchijidohccopf.supabase.co
+      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljb3Z6eHpjaGlqaWRvaGNjb3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4NzE5MTIsImV4cCI6MjA2ODQ0NzkxMn0.DREbgsPwi9YfDlxA-cIEohqQLC2e2yLiFcktNXSGpvM
+      - SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imljb3Z6eHpjaGlqaWRvaGNjb3BmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4NzE5MTIsImV4cCI6MjA2ODQ0NzkxMn0.DREbgsPwi9YfDlxA-cIEohqQLC2e2yLiFcktNXSGpvM
+      # Server Configuration
+      - PORT=3010
+      - NODE_ENV=production
+      # iFood API Configuration
+      - IFOOD_API_URL=https://merchant-api.ifood.com.br/authentication/v1.0/oauth/token
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      labels:
+        # Traefik Configuration
+        - "traefik.enable=true"
+        - "traefik.docker.network=network_public"
+
+        # HTTP Router - Backend na rota /api
+        - "traefik.http.routers.plano-certo-backend.rule=Host(`app.planocertodelivery.com`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.plano-certo-backend.entrypoints=websecure"
+        - "traefik.http.routers.plano-certo-backend.tls=true"
+        - "traefik.http.routers.plano-certo-backend.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.plano-certo-backend.service=plano-certo-backend"
+        - "traefik.http.routers.plano-certo-backend.priority=10"
+
+        # Service Configuration
+        - "traefik.http.services.plano-certo-backend.loadbalancer.server.port=3010"
+        - "traefik.http.services.plano-certo-backend.loadbalancer.healthcheck.path=/health"
+        - "traefik.http.services.plano-certo-backend.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.plano-certo-backend.loadbalancer.healthcheck.timeout=3s"
+
+        # Middleware - Strip /api prefix
+        - "traefik.http.middlewares.backend-stripprefix.stripprefix.prefixes=/api"
+        - "traefik.http.routers.plano-certo-backend.middlewares=backend-stripprefix,backend-headers,backend-compress,backend-ratelimit"
+
+        # Headers Middleware
+        - "traefik.http.middlewares.backend-headers.headers.customResponseHeaders.Access-Control-Allow-Origin=*"
+        - "traefik.http.middlewares.backend-headers.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,POST,PUT,DELETE,OPTIONS,PATCH"
+        - "traefik.http.middlewares.backend-headers.headers.customResponseHeaders.Access-Control-Allow-Headers=*"
+        - "traefik.http.middlewares.backend-headers.headers.sslredirect=true"
+        - "traefik.http.middlewares.backend-headers.headers.stsSeconds=31536000"
+        - "traefik.http.middlewares.backend-headers.headers.browserXssFilter=true"
+        - "traefik.http.middlewares.backend-headers.headers.contentTypeNosniff=true"
+        - "traefik.http.middlewares.backend-headers.headers.forceSTSHeader=true"
+
+        # Compression Middleware
+        - "traefik.http.middlewares.backend-compress.compress=true"
+
+        # Rate Limit Middleware
+        - "traefik.http.middlewares.backend-ratelimit.ratelimit.average=100"
+        - "traefik.http.middlewares.backend-ratelimit.ratelimit.burst=50"
+  frontend:
+    image: paxley/plano-certo-frontend:1.0.5
+    networks:
+      - network_public
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+      labels:
+        # Traefik Configuration
+        - "traefik.enable=true"
+        - "traefik.docker.network=network_public"
+
+        # HTTP Router - Frontend (todas as rotas exceto /api)
+        - "traefik.http.routers.plano-certo-frontend.rule=Host(`app.planocertodelivery.com`)"
+        - "traefik.http.routers.plano-certo-frontend.entrypoints=websecure"
+        - "traefik.http.routers.plano-certo-frontend.tls=true"
+        - "traefik.http.routers.plano-certo-frontend.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.plano-certo-frontend.service=plano-certo-frontend"
+        - "traefik.http.routers.plano-certo-frontend.priority=1"
+
+        # Service Configuration - Port 3000 (serve)
+        - "traefik.http.services.plano-certo-frontend.loadbalancer.server.port=3000"
+        - "traefik.http.services.plano-certo-frontend.loadbalancer.healthcheck.path=/"
+        - "traefik.http.services.plano-certo-frontend.loadbalancer.healthcheck.interval=10s"
+        - "traefik.http.services.plano-certo-frontend.loadbalancer.healthcheck.timeout=3s"
+
+        # Middleware
+        - "traefik.http.routers.plano-certo-frontend.middlewares=frontend-headers,frontend-compress"
+
+        # Headers Middleware
+        - "traefik.http.middlewares.frontend-headers.headers.customResponseHeaders.X-Frame-Options=SAMEORIGIN"
+        - "traefik.http.middlewares.frontend-headers.headers.customResponseHeaders.X-Content-Type-Options=nosniff"
+        - "traefik.http.middlewares.frontend-headers.headers.customResponseHeaders.X-XSS-Protection=1; mode=block"
+        - "traefik.http.middlewares.frontend-headers.headers.sslredirect=true"
+        - "traefik.http.middlewares.frontend-headers.headers.stsSeconds=31536000"
+        - "traefik.http.middlewares.frontend-headers.headers.browserXssFilter=true"
+        - "traefik.http.middlewares.frontend-headers.headers.contentTypeNosniff=true"
+        - "traefik.http.middlewares.frontend-headers.headers.forceSTSHeader=true"
+
+        # Compression Middleware
+        - "traefik.http.middlewares.frontend-compress.compress=true"
+
+networks:
+  network_public:
+    external: true
+  internal:
+    driver: overlay
+    attachable: true

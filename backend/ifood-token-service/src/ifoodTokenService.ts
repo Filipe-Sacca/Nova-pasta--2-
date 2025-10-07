@@ -645,7 +645,7 @@ export async function getTokenForUser(userId: string): Promise<StoredToken | nul
     const supabaseClient = getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('ifood_tokens')
-      .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
+      .select('user_id, client_id, client_secret, access_token, expires_at, created_at, updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -669,7 +669,7 @@ export async function getAnyAvailableToken(): Promise<StoredToken | null> {
     const supabaseClient = getSupabaseClient();
     const { data, error } = await supabaseClient
       .from('ifood_tokens')
-      .select('user_id, client_id, client_secret, access_token, expires_at, created_at')
+      .select('user_id, client_id, client_secret, access_token, expires_at, created_at, updated_at')
       .limit(1)
       .maybeSingle();
 

@@ -208,7 +208,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       // Call iFood API directly
       const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories`;
 
-      const requestBody = {
+      const requestBody: any = {
         name,
         status,
         index,
@@ -1023,6 +1023,155 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
 
     } catch (error: any) {
       console.error('❌ Error updating option status:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Internal server error: ' + error.message
+      });
+    }
+  });
+
+  // ============================================================================
+  // 🔄 GET PRODUCT AND SYNC TO DATABASE
+  // ============================================================================
+
+  router.get('/merchants/:merchantId/products/:productId', async (req, res) => {
+    try {
+      const { merchantId, productId } = req.params;
+      const itemId = productId; // productId param is actually the itemId from frontend
+
+      console.log(`🔄 Getting item ${itemId} from merchant ${merchantId} and syncing to database...`);
+
+      // Get access token
+      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('ifood_tokens')
+        .select('access_token, user_id')
+        .eq('client_secret', TARGET_CLIENT_SECRET)
+        .single();
+
+      if (tokenError || !tokenData?.access_token) {
+        console.error(`❌ Token not found:`, tokenError);
+        return res.status(401).json({
+          success: false,
+          error: 'Token de acesso não encontrado'
+        });
+      }
+
+      const accessToken = tokenData.access_token;
+      console.log(`✅ Token found, fetching product from iFood...`);
+
+      // Get catalog ID from ifood_categories (merchant can have multiple categories with same catalog_id)
+      const { data: catalogData } = await supabase
+        .from('ifood_categories')
+        .select('catalog_id')
+        .eq('merchant_id', merchantId)
+        .limit(1)
+        .single();
+
+      if (!catalogData?.catalog_id) {
+        return res.status(404).json({
+          success: false,
+          error: 'Catalog not found for merchant'
+        });
+      }
+
+      const catalogId = catalogData.catalog_id;
+      console.log(`✅ Catalog ID: ${catalogId}`);
+
+      // Fetch product from iFood API - flat endpoint returns complete product data
+      const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/items/${itemId}/flat`;
+      console.log(`📡 Calling iFood API: ${ifoodUrl}`);
+
+      const ifoodResponse = await fetch(ifoodUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!ifoodResponse.ok) {
+        const errorText = await ifoodResponse.text();
+        console.error(`❌ iFood API error:`, errorText);
+        return res.status(ifoodResponse.status).json({
+          success: false,
+          error: `iFood API error: ${ifoodResponse.status} - ${errorText}`
+        });
+      }
+
+      const productFromIfood = await ifoodResponse.json();
+      console.log('📦 Product fetched from iFood:');
+      console.log(JSON.stringify(productFromIfood, null, 2));
+
+      // Extract data from correct structure
+      const itemData = productFromIfood.item || {};
+      const productData = productFromIfood.products?.[0] || {};
+      const priceValue = itemData.price?.value || itemData.price?.originalValue || 0;
+
+      console.log('🔍 Extracted data:');
+      console.log('  - Item:', itemData);
+      console.log('  - Product:', productData);
+      console.log('  - Price:', priceValue);
+
+      // Save to database - matching exact schema
+      try {
+        const productToSave = {
+          user_id: tokenData.user_id,
+          merchant_id: merchantId,
+          item_id: itemData.id || itemId,
+          product_id: productData.id || itemData.productId || itemId,
+          name: productData.name || 'Unknown Product',
+          category: productData.category || null,
+          price: priceValue,
+          description: productData.description || null,
+          is_active: itemData.status || 'AVAILABLE',
+          imagePath: productData.imagePath || null,
+          ifood_category_id: itemData.categoryId || null,
+          ifood_category_name: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('💾 Salvando produto no banco:', productToSave);
+
+        // Insert product (without upsert since there's no unique constraint on item_id)
+        const { data: savedProduct, error: saveError } = await supabase
+          .from('products')
+          .insert(productToSave)
+          .select()
+          .single();
+
+        if (saveError) {
+          console.error('❌ Error saving to database:', saveError);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to save product to database',
+            details: saveError
+          });
+        }
+
+        console.log('✅ Product saved to database:', savedProduct);
+
+        return res.json({
+          success: true,
+          message: 'Product synced successfully',
+          data: {
+            ifood: productFromIfood,
+            database: savedProduct
+          }
+        });
+
+      } catch (dbError: any) {
+        console.error('❌ Database error:', dbError);
+        return res.status(500).json({
+          success: false,
+          error: 'Database operation failed',
+          details: dbError.message
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error syncing product:', error);
       return res.status(500).json({
         success: false,
         error: 'Internal server error: ' + error.message

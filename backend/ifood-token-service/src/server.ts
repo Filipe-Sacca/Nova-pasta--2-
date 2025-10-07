@@ -30,7 +30,7 @@ import { MerchantPollingService } from './merchantPollingService';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 8093;
+const PORT = Number(process.env.PORT) || 8093;
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -200,13 +200,13 @@ app.use('*', (req, res) => {
 // Initialize merchant polling service
 const merchantPolling = new MerchantPollingService();
 
-const server = app.listen(PORT, async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log('\n🎯 ============================================');
   console.log('🚀 iFood Token Service - Modular Architecture');
   console.log('🎯 ============================================');
   console.log(`🌐 Server running on port ${PORT}`);
-  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
-  console.log(`📋 API docs: http://localhost:${PORT}/`);
+  console.log(`🔗 Health check: https://app.planocertodelivery.com/api/health`);
+  console.log(`📋 API docs: https://app.planocertodelivery.com/api/`);
   console.log('📁 Active modules:');
   console.log('   🔐 Token Management (tokenRoutes)');
   console.log('   🏪 Merchant Operations (merchantRoutes)');

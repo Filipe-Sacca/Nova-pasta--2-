@@ -107,7 +107,7 @@ export const useUserStoreProducts = (selectedMerchantId?: string) => {
       console.log(`🧠 [SMART-SYNC] Executando para ${merchant.name} às ${timestamp}`);
 
       try {
-        const response = await fetch(`http://5.161.109.157:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+        const response = await fetch(`${API_BASE_URL}/merchants/${merchant.merchant_id}/products/simple-sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -152,7 +152,7 @@ export const useUserStoreProducts = (selectedMerchantId?: string) => {
         console.log(`📡 [BACKGROUND] Sincronizando merchant: ${merchant.name}`);
 
         // Sincronização completa em background
-        const response = await fetch(`http://5.161.109.157:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+        const response = await fetch(`${API_BASE_URL}/merchants/${merchant.merchant_id}/products/simple-sync`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -221,7 +221,7 @@ export const useUserStoreProducts = (selectedMerchantId?: string) => {
 
     for (const merchant of userMerchants) {
       try {
-        const response = await fetch(`http://5.161.109.157:8093/merchants/${merchant.merchant_id}/products/simple-sync`, {
+        const response = await fetch(`${API_BASE_URL}/merchants/${merchant.merchant_id}/products/simple-sync`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

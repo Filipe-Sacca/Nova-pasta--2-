@@ -13,7 +13,9 @@ export class ProductSyncScheduler {
     const supabaseUrl = process.env.SUPABASE_URL || '';
     const supabaseKey = process.env.SUPABASE_ANON_KEY || '';
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    this.baseUrl = `http://localhost:${process.env.PORT || 8085}`;
+    this.baseUrl = process.env.NODE_ENV === 'production'
+      ? 'https://app.planocertodelivery.com/api'
+      : `http://localhost:${process.env.PORT || 8085}`;
   }
 
   /**

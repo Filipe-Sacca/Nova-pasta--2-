@@ -136,7 +136,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       // Buscar o imagePath salvo no banco de dados
       const { data: productData, error: productError } = await supabase
         .from('products')
-        .select('imagePath, item_id, name, description, price, ifood_category_id, is_active')
+        .select('imagePath, item_id, product_id, name, description, price, ifood_category_id, is_active')
         .eq('product_id', productId)
         .eq('merchant_id', merchantId)
         .single();
@@ -172,23 +172,22 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       // Atualizar produto no iFood com a imagem
       const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/items`;
 
+      // ✅ Campos essenciais apenas
+      // Converter boolean para string do status do iFood
+      const ifoodStatus = productData.is_active ? 'AVAILABLE' : 'UNAVAILABLE';
+
       const updateData = {
         item: {
-          id: productData.item_id,
-          productId: productId,
-          categoryId: productData.ifood_category_id,
-          status: productData.is_active,
-          price: {
-            value: parseFloat(productData.price),
-            originalValue: parseFloat(productData.price)
-          },
-          imagePath: imagePath
+          id: productData.item_id,              // ✅ Obrigatório - ID do item
+          productId: productData.product_id,    // ✅ Obrigatório - UUID do produto
+          categoryId: productData.ifood_category_id, // ✅ Obrigatório - CategoryId
+          status: ifoodStatus,                  // ✅ Obrigatório - AVAILABLE/UNAVAILABLE
+          imagePath: imagePath                  // ✅ Path da imagem
         },
         products: [{
-          id: productId,
-          name: productData.name,
-          description: productData.description || '',
-          imagePath: imagePath
+          id: productData.product_id,           // ✅ Obrigatório - UUID do produto
+          name: productData.name,               // ✅ Obrigatório - Nome do produto
+          imagePath: imagePath                  // ✅ Path da imagem
         }]
       };
 

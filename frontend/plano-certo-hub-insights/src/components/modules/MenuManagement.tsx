@@ -48,6 +48,7 @@ import { useMerchantProducts, useAvailableMerchants } from '@/hooks/useMerchantP
 import { useIfoodTokens } from '@/hooks/useIfoodTokens';
 import { useIfoodCategories } from '@/hooks/useIfoodCategories';
 import { useAuth } from '@/App';
+import { ProductComplementsView } from './ProductComplementsView';
 
 // Helper function to normalize status
 const isProductActive = (status: any): boolean => {
@@ -204,7 +205,11 @@ export const MenuManagement = () => {
     price: '',
     status: 'AVAILABLE' as 'AVAILABLE' | 'UNAVAILABLE'
   });
-  
+
+  // Estados para modal de complementos
+  const [isComplementsModalOpen, setIsComplementsModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
   // Usar o novo hook para buscar produtos das lojas do usuário
   // selectedClient agora ativa o smart-sync sob demanda
   // Usar novo hook baseado em merchant_id
@@ -248,6 +253,18 @@ export const MenuManagement = () => {
       setSelectedMerchantForCategories(selectedClient);
     }
   }, [selectedClient]);
+
+  // ✅ NOVO: Sync automático ao trocar de merchant (User-Triggered Sync)
+  useEffect(() => {
+    if (selectedClient && user) {
+      console.log('🔄 [MENU-MANAGEMENT] Auto-sync on merchant change');
+      console.log('   - Merchant:', selectedClient);
+      console.log('   - Compliance: ✅ User-triggered operation (merchant selection)');
+
+      // Full sync para garantir dados atualizados
+      sync(false);
+    }
+  }, [selectedClient, user]);
 
   // Atualizar imagens quando produtos mudarem
   useEffect(() => {
@@ -1137,14 +1154,19 @@ Renove o token na página de Tokens do iFood`);
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => forceRefresh()}
-            disabled={isRefetching}
+          <Button
+            variant="outline"
+            onClick={() => {
+              console.log('🔄 [MENU-MANAGEMENT] Manual sync button clicked');
+              console.log('   - Merchant:', selectedClient);
+              console.log('   - Compliance: ✅ User-triggered operation (manual button)');
+              sync(false); // Full sync
+            }}
+            disabled={isRefetching || !selectedClient}
             className="flex items-center space-x-2"
           >
             <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-            <span>{isRefetching ? 'Atualizando...' : 'Atualizar Produtos'}</span>
+            <span>{isRefetching ? 'Sincronizando...' : 'Sincronizar com iFood'}</span>
           </Button>
         </div>
       </div>
@@ -1174,7 +1196,7 @@ Renove o token na página de Tokens do iFood`);
                     <Package className="h-5 w-5" />
                     <span>Itens do Cardápio</span>
                     <Badge variant="outline" className="text-xs">
-                      Auto-sync 5min
+                      User-Triggered Sync
                     </Badge>
                   </div>
                   <Dialog open={isCreateItemOpen} onOpenChange={setIsCreateItemOpen}>
@@ -1643,6 +1665,20 @@ Renove o token na página de Tokens do iFood`);
                               >
                                 <DollarSign className="h-3 w-3" />
                                 <span className="ml-1 text-xs">Preço</span>
+                              </Button>
+
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-white text-purple-600 hover:text-purple-700 hover:bg-purple-50 border-purple-300 hover:border-purple-400"
+                                onClick={() => {
+                                  setSelectedProductId(product.product_id);
+                                  setIsComplementsModalOpen(true);
+                                }}
+                                title="Ver complementos deste produto"
+                              >
+                                <Package className="h-3 w-3" />
+                                <span className="ml-1 text-xs">Complementos</span>
                               </Button>
                             </div>
                           </TableCell>
@@ -3234,6 +3270,24 @@ Renove o token na página de Tokens do iFood`);
               Salvar Alterações
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Complementos do Produto */}
+      <Dialog open={isComplementsModalOpen} onOpenChange={setIsComplementsModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Produto e Complementos</DialogTitle>
+            <DialogDescription>
+              Visualize os complementos disponíveis para este produto
+            </DialogDescription>
+          </DialogHeader>
+          {selectedProductId && selectedClient && (
+            <ProductComplementsView
+              productId={selectedProductId}
+              merchantId={selectedClient}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

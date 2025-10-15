@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   backend:
-    image: paxley/plano-certo-backend:1.0.5
+    image: paxley/plano-certo-backend:1.0.8
     networks:
       - network_public
     environment:
@@ -81,7 +81,7 @@ services:
         - "traefik.http.middlewares.backend-ratelimit.ratelimit.average=100"
         - "traefik.http.middlewares.backend-ratelimit.ratelimit.burst=50"
   frontend:
-    image: paxley/plano-certo-frontend:1.0.5
+    image: paxley/plano-certo-frontend:1.0.8
     networks:
       - network_public
     deploy:

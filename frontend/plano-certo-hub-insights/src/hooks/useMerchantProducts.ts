@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { API_BASE_URL } from '@/config/api';
 
 export interface MerchantProduct {
   id: string;
@@ -92,10 +93,47 @@ export const useMerchantProducts = (merchantId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['merchant-products', merchantId] });
   };
 
-  // Sync function DISABLED - simple-sync endpoint removed
-  const syncWithIfood = async () => {
-    console.log('⚠️ [MANUAL-SYNC] Endpoint removido - sync não disponível');
-    return null;
+  // ============================================================================
+  // 🆕 NOVO: Sync function para chamar smart-sync-working endpoint
+  // ============================================================================
+  const sync = async (quickMode: boolean = false) => {
+    if (!merchantId) {
+      console.warn('⚠️ [SYNC] Sem merchant_id - sync cancelado');
+      return null;
+    }
+
+    try {
+      console.log(`🔄 [SYNC] Iniciando sync para merchant ${merchantId}, quick_mode: ${quickMode}`);
+
+      // Buscar user_id do Supabase auth
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('❌ [SYNC] Usuário não autenticado');
+        return null;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/merchants/${merchantId}/products/smart-sync-working`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          quick_mode: quickMode
+        })
+      });
+
+      const result = await response.json();
+      console.log(`✅ [SYNC] Sync completo:`, result);
+
+      // Invalidar cache para recarregar produtos
+      queryClient.invalidateQueries({ queryKey: ['merchant-products', merchantId] });
+
+      return result;
+    } catch (error) {
+      console.error('❌ [SYNC] Erro:', error);
+      return null;
+    }
   };
 
   return {
@@ -105,15 +143,9 @@ export const useMerchantProducts = (merchantId?: string) => {
     error: productsQuery.error,
     refetch: productsQuery.refetch,
     forceRefresh,
-    syncWithIfood,
+    sync,  // ✅ Agora retorna a FUNÇÃO, não um objeto!
     lastUpdated: productsQuery.dataUpdatedAt,
     isRefetching: productsQuery.isRefetching,
-    // Informações de sincronização
-    sync: {
-      isLoading: syncQuery.isLoading,
-      data: syncQuery.data,
-      error: syncQuery.error,
-    },
   };
 };
 

@@ -278,6 +278,155 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
     }
   });
 
+  // Create category - SIMPLIFIED (auto-fetch catalogId)
+  router.post('/merchants/:merchantId/categories', async (req, res) => {
+    try {
+      const { merchantId } = req.params;
+      const { name, template, status = 'AVAILABLE', externalCode = '', index = 0 } = req.body;
+
+      // Validate required fields
+      if (!name) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing required field: name'
+        });
+      }
+
+      console.log(`📂 [SIMPLE-CATEGORY] Creating category for merchant: ${merchantId}`);
+
+      // Get access token
+      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('ifood_tokens')
+        .select('access_token, user_id')
+        .eq('client_secret', TARGET_CLIENT_SECRET)
+        .single();
+
+      if (tokenError || !tokenData?.access_token) {
+        console.error(`❌ Token not found:`, tokenError);
+        return res.status(401).json({
+          success: false,
+          error: 'Token de acesso não encontrado'
+        });
+      }
+
+      console.log(`✅ Token found, fetching catalogId...`);
+
+      // Get catalogId from database
+      const { data: catalogData } = await supabase
+        .from('ifood_categories')
+        .select('catalog_id')
+        .eq('merchant_id', merchantId)
+        .limit(1)
+        .single();
+
+      let catalogId;
+
+      if (catalogData?.catalog_id) {
+        catalogId = catalogData.catalog_id;
+        console.log(`✅ Found catalogId from database: ${catalogId}`);
+      } else {
+        // Fetch from iFood API
+        console.log(`⚠️ No catalogId in database, fetching from iFood...`);
+        const catalogsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs`;
+
+        const catalogsResponse = await fetch(catalogsUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!catalogsResponse.ok) {
+          throw new Error(`Failed to fetch catalogs: ${catalogsResponse.status}`);
+        }
+
+        const catalogsData = await catalogsResponse.json();
+        if (!catalogsData || catalogsData.length === 0) {
+          throw new Error('No catalogs found');
+        }
+
+        catalogId = catalogsData[0].catalogId || catalogsData[0].id;
+        console.log(`✅ Found catalogId from iFood API: ${catalogId}`);
+      }
+
+      // Call iFood API to create category
+      const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories`;
+
+      const requestBody: any = {
+        name,
+        status,
+        index,
+        template: template === 'PIZZA' ? 'PIZZA' : 'DEFAULT'
+      };
+
+      if (externalCode) {
+        requestBody.externalCode = externalCode;
+      }
+
+      console.log(`📡 [SIMPLE-CATEGORY] Creating category on iFood:`, requestBody);
+
+      const ifoodResponse = await fetch(ifoodUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (ifoodResponse.ok) {
+        const responseData = await ifoodResponse.json();
+        console.log(`✅ Category created successfully on iFood`);
+
+        // Save to local database
+        try {
+          await supabase
+            .from('ifood_categories')
+            .insert({
+              category_id: responseData.id,
+              ifood_category_id: responseData.id,
+              merchant_id: merchantId,
+              catalog_id: catalogId,
+              name: name,
+              external_code: externalCode,
+              status: status,
+              index: index,
+              template: requestBody.template,
+              user_id: tokenData.user_id,
+              created_at: new Date().toISOString()
+            });
+          console.log(`💾 Category saved to local database`);
+        } catch (dbError) {
+          console.warn(`⚠️ Failed to save category locally:`, dbError);
+        }
+
+        return res.json({
+          success: true,
+          message: 'Category created successfully',
+          data: responseData
+        });
+      } else {
+        const errorText = await ifoodResponse.text();
+        console.error(`❌ iFood API failed:`, errorText);
+
+        return res.status(ifoodResponse.status).json({
+          success: false,
+          error: `iFood API error: ${ifoodResponse.status} - ${errorText}`
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error creating category:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to create category: ' + error.message
+      });
+    }
+  });
+
   // Get categories for catalog
   router.get('/merchants/:merchantId/catalogs/:catalogId/categories', async (req, res) => {
     try {
@@ -397,34 +546,6 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
       console.log('✅ [WORKING] Token found, proceeding...');
 
-      // Get categories
-      console.log('📂 [WORKING] Getting categories...');
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('ifood_categories')
-        .select('category_id, name')
-        .eq('merchant_id', merchantId);
-
-      if (categoriesError || !categoriesData || categoriesData.length === 0) {
-        console.log('⚠️ [WORKING] No categories found, returning database products only');
-
-        const { data: dbProducts, error: dbError } = await supabase
-          .from('products')
-          .select('*')
-          .eq('merchant_id', merchantId);
-
-        return res.json({
-          success: true,
-          message: 'No categories found - returning existing products',
-          merchant_id: merchantId,
-          total_products: dbProducts?.length || 0,
-          updated_products: 0,
-          sync_timestamp: new Date().toISOString(),
-          mode: 'no_categories'
-        });
-      }
-
-      console.log(`✅ [WORKING] Found ${categoriesData.length} categories`);
-
       // Get catalog ID from iFood
       console.log('📚 [WORKING] Getting catalog ID from iFood...');
       const catalogsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs`;
@@ -449,13 +570,83 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       const catalogId = catalogsData[0].catalogId || catalogsData[0].id;
       console.log(`✅ [WORKING] Catalog ID: ${catalogId}`);
 
+      // ============================================================================
+      // 🆕 NOVO: Sync de categorias do iFood API (fix para detectar novas categorias)
+      // ============================================================================
+      console.log('📂 [WORKING] Syncing categories from iFood API...');
+
+      const categoriesUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories`;
+
+      const categoriesResponse = await fetch(categoriesUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!categoriesResponse.ok) {
+        throw new Error(`Failed to fetch categories from iFood: ${categoriesResponse.status}`);
+      }
+
+      const ifoodCategoriesData = await categoriesResponse.json();
+      console.log(`✅ [WORKING] Found ${ifoodCategoriesData?.length || 0} categories from iFood API`);
+
+      // Get existing categories from database
+      const { data: dbCategories } = await supabase
+        .from('ifood_categories')
+        .select('category_id, name')
+        .eq('merchant_id', merchantId);
+
+      const dbCategoryIds = new Set(dbCategories?.map(c => c.category_id) || []);
+
+      // Insert new categories that don't exist in database
+      let newCategoriesCount = 0;
+      for (const ifoodCategory of ifoodCategoriesData || []) {
+        if (!dbCategoryIds.has(ifoodCategory.id)) {
+          console.log(`🆕 [WORKING] New category detected: ${ifoodCategory.name}`);
+
+          try {
+            await supabase
+              .from('ifood_categories')
+              .insert({
+                category_id: ifoodCategory.id,
+                ifood_category_id: ifoodCategory.id,
+                merchant_id: merchantId,
+                catalog_id: catalogId,
+                name: ifoodCategory.name,
+                external_code: ifoodCategory.externalCode || '',
+                status: ifoodCategory.status || 'AVAILABLE',
+                index: ifoodCategory.index || 0,
+                template: ifoodCategory.template || 'DEFAULT',
+                user_id: user_id,
+                created_at: new Date().toISOString()
+              });
+
+            newCategoriesCount++;
+            console.log(`✅ [WORKING] New category saved: ${ifoodCategory.name}`);
+          } catch (insertError) {
+            console.error(`❌ [WORKING] Failed to insert category ${ifoodCategory.name}:`, insertError);
+          }
+        }
+      }
+
+      console.log(`📊 [WORKING] Categories sync: ${newCategoriesCount} new, ${dbCategories?.length || 0} existing`);
+
+      // Use the complete list from iFood API for product sync
+      const categoriesData = ifoodCategoriesData.map((cat: any) => ({
+        category_id: cat.id,
+        name: cat.name
+      }));
+
       // Fetch products from iFood API
       let allIfoodProducts: any[] = [];
 
       for (const category of categoriesData) {
         console.log(`🔍 [WORKING] Fetching products from category: ${category.name}`);
 
-        const itemsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories/${category.category_id}`;
+        // ✅ CORRECTED: Use the /categories/{categoryId}/items endpoint that returns optionGroups
+        const itemsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/categories/${category.category_id}/items`;
 
         try {
           const itemsResponse = await fetch(itemsUrl, {
@@ -471,18 +662,108 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
             if (itemsData && itemsData.items && itemsData.items.length > 0) {
               console.log(`✅ [WORKING] Found ${itemsData.items.length} products in ${category.name}`);
 
+              // DEBUG: Log complete response structure
+              console.log(`🔍 [WORKING] Response keys:`, Object.keys(itemsData));
+              console.log(`🔍 [WORKING] Has optionGroups:`, !!itemsData.optionGroups);
+              console.log(`🔍 [WORKING] Has products:`, !!itemsData.products);
+
+              // ============================================================================
+              // 🆕 Criar Maps de optionGroups e products para lookup
+              // ============================================================================
+              const optionGroupsMap = new Map();
+              const productsMap = new Map();
+
+              // Map optionGroups pelo ID
+              if (itemsData.optionGroups && itemsData.optionGroups.length > 0) {
+                for (const optionGroup of itemsData.optionGroups) {
+                  optionGroupsMap.set(optionGroup.id, optionGroup);
+                }
+                console.log(`📋 [WORKING] Found ${itemsData.optionGroups.length} option groups`);
+              } else {
+                console.log(`⚠️ [WORKING] No optionGroups found in iFood API response for ${category.name}`);
+              }
+
+              // Map products pelo ID
+              if (itemsData.products && itemsData.products.length > 0) {
+                for (const product of itemsData.products) {
+                  productsMap.set(product.id, product);
+                }
+              }
+
               // Process products
               for (const item of itemsData.items) {
+                // Buscar product correspondente
+                const product = productsMap.get(item.productId);
+
+                // Coletar option_ids do produto
+                const optionIds: string[] = [];
+
+                if (product && product.optionGroups && product.optionGroups.length > 0) {
+                  for (const productOptionGroup of product.optionGroups) {
+                    // Buscar o optionGroup completo
+                    const optionGroup = optionGroupsMap.get(productOptionGroup.id);
+
+                    if (optionGroup && optionGroup.optionIds && optionGroup.optionIds.length > 0) {
+                      // Adicionar todos os option_ids deste grupo
+                      optionIds.push(...optionGroup.optionIds);
+                    }
+                  }
+                }
+
+                console.log(`🎯 [WORKING] Product ${product?.name || item.id} has ${optionIds.length} option_ids`);
+
                 allIfoodProducts.push({
-                  id: item.id,
-                  name: item.name,
-                  description: item.description || null,
+                  id: item.id,                    // ✅ item.id (para item_id column)
+                  productId: product?.id || item.productId,  // ✅ product.id (para product_id column)
+                  name: product?.name || item.name || 'Unknown',
+                  description: product?.description || item.description || null,
                   status: item.status,
                   price: item.price?.value || 0,
-                  imagePath: item.imagePath || null,
+                  imagePath: product?.imagePath || item.imagePath || null,
                   category: category.name,
-                  category_id: category.category_id
+                  category_id: category.category_id,
+                  option_ids: optionIds.length > 0 ? optionIds : null  // Array de option_ids
                 });
+              }
+
+              // ============================================================================
+              // 🆕 SALVAR COMPLEMENTOS (options) na tabela ifood_complements
+              // ============================================================================
+              if (itemsData.options && itemsData.options.length > 0) {
+                console.log(`🍴 [WORKING] Processing ${itemsData.options.length} complements for category ${category.name}`);
+
+                for (const option of itemsData.options) {
+                  // Buscar produto do complemento
+                  const optionProduct = productsMap.get(option.productId);
+
+                  // Pegar preço do contextModifier (primeiro DEFAULT)
+                  const contextPrice = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.price?.value || 0;
+                  const contextStatus = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.status || option.status || 'AVAILABLE';
+
+                  const complementData = {
+                    merchant_id: merchantId,
+                    option_id: option.id,
+                    name: optionProduct?.name || 'Sem nome',
+                    description: optionProduct?.description || null,
+                    imagePath: optionProduct?.imagePath || null,
+                    context_price: contextPrice,
+                    status: contextStatus,
+                    product_id: option.productId
+                  };
+
+                  console.log(`💾 [WORKING] Saving complement: ${complementData.name} (option_id: ${option.id}, price: ${contextPrice})`);
+
+                  // Usar upsert com constraint única option_id
+                  const { error: complementError } = await supabase
+                    .from('ifood_complements')
+                    .upsert(complementData, { onConflict: 'option_id' });
+
+                  if (complementError) {
+                    console.error(`❌ [WORKING] Error saving complement ${complementData.name}:`, complementError);
+                  } else {
+                    console.log(`✅ [WORKING] Complement saved: ${complementData.name}`);
+                  }
+                }
               }
             }
           } else {
@@ -507,14 +788,28 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
 
       console.log(`📊 [WORKING] Products in database: ${dbProducts?.length || 0}`);
 
-      // Compare and update
+      // Compare and update/create
       let updatedProducts = 0;
+      let createdProducts = 0;
       const changesDetected: any[] = [];
 
+      console.log(`🔍 [WORKING] Starting product comparison...`);
+      console.log(`  - iFood products: ${allIfoodProducts.length}`);
+      console.log(`  - DB products: ${dbProducts?.length || 0}`);
+
+      // Debug: show first few item_ids from DB
+      if (dbProducts && dbProducts.length > 0) {
+        console.log(`  - Sample DB item_ids:`, dbProducts.slice(0, 3).map(p => p.item_id));
+      }
+
       for (const ifoodProduct of allIfoodProducts) {
+        console.log(`\n🔍 [WORKING] Processing product: ${ifoodProduct.name} (item_id: ${ifoodProduct.id})`);
+
         const dbProduct = dbProducts?.find(p => p.item_id === ifoodProduct.id);
+        console.log(`  - Found in DB: ${!!dbProduct}`);
 
         if (dbProduct) {
+          // PRODUTO JÁ EXISTE - ATUALIZAR
           let needsUpdate = false;
           const updates: any = {};
 
@@ -563,6 +858,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
                 changesDetected.push({
                   product_id: dbProduct.id,
                   name: dbProduct.name,
+                  action: 'updated',
                   changes: updates
                 });
                 console.log(`✅ [WORKING] Updated: ${dbProduct.name}`);
@@ -573,16 +869,67 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
               console.error(`❌ [WORKING] Error updating ${dbProduct.name}:`, updateError);
             }
           }
+        } else {
+          // PRODUTO NÃO EXISTE - CRIAR NOVO
+          console.log(`\n🆕 [WORKING] Creating new product: ${ifoodProduct.name}`);
+
+          try {
+            const newProduct = {
+              user_id: user_id,
+              merchant_id: merchantId,
+              item_id: ifoodProduct.id,                     // ✅ item.id do iFood
+              product_id: ifoodProduct.productId,           // ✅ product.id do iFood (CORRIGIDO!)
+              name: ifoodProduct.name,
+              category: ifoodProduct.category,
+              price: ifoodProduct.price,
+              description: ifoodProduct.description,
+              is_active: ifoodProduct.status === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE',
+              imagePath: ifoodProduct.imagePath,
+              ifood_category_id: ifoodProduct.category_id,
+              ifood_category_name: ifoodProduct.category,
+              option_ids: ifoodProduct.option_ids || null,  // ✅ Array de option_ids
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            console.log(`  - Product data to insert:`, {
+              item_id: newProduct.item_id,
+              name: newProduct.name,
+              category: newProduct.category,
+              price: newProduct.price,
+              status: newProduct.is_active
+            });
+
+            const { error: insertError } = await supabase
+              .from('products')
+              .insert(newProduct);
+
+            if (!insertError) {
+              createdProducts++;
+              changesDetected.push({
+                product_id: ifoodProduct.id,
+                name: ifoodProduct.name,
+                action: 'created'
+              });
+              console.log(`✅ [WORKING] Created: ${ifoodProduct.name}`);
+            } else {
+              console.error(`❌ [WORKING] Failed to create ${ifoodProduct.name}:`, insertError);
+              console.error(`  - Error details:`, JSON.stringify(insertError, null, 2));
+            }
+          } catch (insertError) {
+            console.error(`❌ [WORKING] Error creating ${ifoodProduct.name}:`, insertError);
+          }
         }
       }
 
-      console.log(`🎉 [WORKING] Sync completed - ${updatedProducts} products updated`);
+      console.log(`🎉 [WORKING] Sync completed - ${createdProducts} created, ${updatedProducts} updated`);
 
       return res.json({
         success: true,
         message: 'Working sync completed successfully',
         merchant_id: merchantId,
         total_products: allIfoodProducts.length,
+        created_products: createdProducts,
         updated_products: updatedProducts,
         changes_detected: changesDetected.length,
         sync_timestamp: new Date().toISOString(),
@@ -590,6 +937,8 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         details: {
           ifood_products: allIfoodProducts.length,
           database_products: dbProducts?.length || 0,
+          created: createdProducts,
+          updated: updatedProducts,
           changes: changesDetected
         }
       });
@@ -884,7 +1233,8 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       const { merchantId } = req.params;
       const { optionId, price } = req.body;
 
-      console.log(`💰 Updating option price for merchant: ${merchantId}, option: ${optionId}`);
+      console.log(`💰 [OPTIONS-PRICE] Updating option price for merchant: ${merchantId}, option: ${optionId}`);
+      console.log(`💰 [OPTIONS-PRICE] Received price:`, price, `(type: ${typeof price})`);
 
       // Validate required fields
       if (!optionId || price === undefined) {
@@ -904,18 +1254,30 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         .single();
 
       if (tokenError || !tokenData?.access_token) {
-        console.error(`❌ Token not found:`, tokenError);
+        console.error(`❌ [OPTIONS-PRICE] Token not found:`, tokenError);
         return res.status(401).json({
           success: false,
           error: 'Token de acesso não encontrado'
         });
       }
 
-      console.log(`✅ Token found, making request to iFood...`);
+      console.log(`✅ [OPTIONS-PRICE] Token found, preparing iFood request...`);
+
+      // Convert price to iFood format { value, originalValue }
+      const priceValue = typeof price === 'number' ? price : (price.value || 0);
+      const ifoodPayload = {
+        optionId,
+        price: {
+          value: priceValue,
+          originalValue: priceValue
+        }
+      };
+
+      console.log(`📦 [OPTIONS-PRICE] iFood payload:`, JSON.stringify(ifoodPayload, null, 2));
 
       // Call iFood API
       const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/options/price`;
-      const ifoodPayload = { optionId, price };
+      console.log(`📡 [OPTIONS-PRICE] Calling iFood API:`, ifoodUrl);
 
       const ifoodResponse = await fetch(ifoodUrl, {
         method: 'PATCH',
@@ -926,18 +1288,35 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         body: JSON.stringify(ifoodPayload)
       });
 
+      console.log(`📡 [OPTIONS-PRICE] iFood response status:`, ifoodResponse.status);
+
       if (ifoodResponse.ok) {
-        console.log(`✅ Option price updated successfully`);
+        console.log(`✅ [OPTIONS-PRICE] iFood API success - updating local database...`);
+
+        // Update local database
+        const { error: dbError } = await supabase
+          .from('ifood_complements')
+          .update({
+            context_price: priceValue,
+            updated_at: new Date().toISOString()
+          })
+          .eq('option_id', optionId);
+
+        if (dbError) {
+          console.error(`⚠️ [OPTIONS-PRICE] Database update failed:`, dbError);
+        } else {
+          console.log(`✅ [OPTIONS-PRICE] Database updated successfully`);
+        }
 
         return res.json({
           success: true,
           message: 'Option price updated successfully',
           optionId,
-          price
+          price: priceValue
         });
       } else {
         const errorText = await ifoodResponse.text();
-        console.error(`❌ iFood API failed:`, errorText);
+        console.error(`❌ [OPTIONS-PRICE] iFood API failed:`, errorText);
 
         return res.status(ifoodResponse.status).json({
           success: false,
@@ -946,7 +1325,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
     } catch (error: any) {
-      console.error('❌ Error updating option price:', error);
+      console.error('❌ [OPTIONS-PRICE] Fatal error:', error);
       return res.status(500).json({
         success: false,
         error: 'Internal server error: ' + error.message
@@ -960,7 +1339,8 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       const { merchantId } = req.params;
       const { optionId, status } = req.body;
 
-      console.log(`🔄 Updating option status for merchant: ${merchantId}, option: ${optionId}`);
+      console.log(`🔄 [OPTIONS-STATUS] Updating option status for merchant: ${merchantId}, option: ${optionId}`);
+      console.log(`🔄 [OPTIONS-STATUS] New status:`, status);
 
       // Validate required fields
       if (!optionId || !status) {
@@ -980,18 +1360,21 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         .single();
 
       if (tokenError || !tokenData?.access_token) {
-        console.error(`❌ Token not found:`, tokenError);
+        console.error(`❌ [OPTIONS-STATUS] Token not found:`, tokenError);
         return res.status(401).json({
           success: false,
           error: 'Token de acesso não encontrado'
         });
       }
 
-      console.log(`✅ Token found, making request to iFood...`);
+      console.log(`✅ [OPTIONS-STATUS] Token found, making request to iFood...`);
 
       // Call iFood API
       const ifoodUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/options/status`;
       const ifoodPayload = { optionId, status };
+
+      console.log(`📦 [OPTIONS-STATUS] iFood payload:`, JSON.stringify(ifoodPayload, null, 2));
+      console.log(`📡 [OPTIONS-STATUS] Calling iFood API:`, ifoodUrl);
 
       const ifoodResponse = await fetch(ifoodUrl, {
         method: 'PATCH',
@@ -1002,8 +1385,25 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         body: JSON.stringify(ifoodPayload)
       });
 
+      console.log(`📡 [OPTIONS-STATUS] iFood response status:`, ifoodResponse.status);
+
       if (ifoodResponse.ok) {
-        console.log(`✅ Option status updated successfully`);
+        console.log(`✅ [OPTIONS-STATUS] iFood API success - updating local database...`);
+
+        // Update local database
+        const { error: dbError } = await supabase
+          .from('ifood_complements')
+          .update({
+            status: status,
+            updated_at: new Date().toISOString()
+          })
+          .eq('option_id', optionId);
+
+        if (dbError) {
+          console.error(`⚠️ [OPTIONS-STATUS] Database update failed:`, dbError);
+        } else {
+          console.log(`✅ [OPTIONS-STATUS] Database updated successfully`);
+        }
 
         return res.json({
           success: true,
@@ -1013,7 +1413,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         });
       } else {
         const errorText = await ifoodResponse.text();
-        console.error(`❌ iFood API failed:`, errorText);
+        console.error(`❌ [OPTIONS-STATUS] iFood API failed:`, errorText);
 
         return res.status(ifoodResponse.status).json({
           success: false,
@@ -1022,7 +1422,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
     } catch (error: any) {
-      console.error('❌ Error updating option status:', error);
+      console.error('❌ [OPTIONS-STATUS] Fatal error:', error);
       return res.status(500).json({
         success: false,
         error: 'Internal server error: ' + error.message

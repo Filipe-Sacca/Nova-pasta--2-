@@ -1159,31 +1159,29 @@ export class IFoodMerchantStatusService {
                 return;
               }
 
-              // Fetch opening hours
-              console.log(`🔍 Fetching opening hours for merchant: ${merchantId}`);
-              const { success, hours } = await this.fetchOpeningHours(
-                merchantId,
-                tokenData.access_token
-              );
+              // 🔴 REMOVIDO: Fetch opening hours repetidamente - DESNECESSÁRIO!
+              // Opening hours agora são buscados apenas:
+              // 1. Manualmente via endpoint GET /merchants/:merchantId/opening-hours
+              // 2. Uma vez ao cadastrar o merchant
+              // 3. Ou em scheduler separado (1x por dia)
 
-              console.log(`📊 Opening hours result - Success: ${success}, Hours count: ${hours.length}`);
-              if (hours.length > 0) {
-                console.log(`📋 First hour sample:`, JSON.stringify(hours[0], null, 2));
-              }
+              // Get opening hours from database (cached)
+              const { data: merchantData, error: merchantError } = await supabase
+                .from('ifood_merchants')
+                .select('operating_hours')
+                .eq('merchant_id', merchantId)
+                .single();
 
-              if (!success || hours.length === 0) {
-                console.warn(`❌ Could not fetch opening hours for ${merchantId} - Success: ${success}, Hours: ${hours.length}`);
+              if (merchantError || !merchantData || !merchantData.operating_hours || !merchantData.operating_hours.shifts) {
+                console.warn(`⚠️ No cached opening hours found for merchant ${merchantId} - Skipping status check`);
+                console.warn(`💡 TIP: Call GET /merchants/${merchantId}/opening-hours to fetch and cache hours`);
                 return;
               }
 
-              // Save opening hours to database
-              console.log(`💾 [SAVE] Salvando ${hours.length} horários para merchant: ${merchantId}`);
-              console.log(`💾 [SAVE] Dados a salvar:`, JSON.stringify(hours, null, 2));
-              
-              const saveResult = await this.saveOpeningHoursToDatabase(merchantId, hours);
-              console.log(`💾 [SAVE] Resultado do salvamento:`, saveResult);
+              const hours = merchantData.operating_hours.shifts;
+              console.log(`📋 Using cached opening hours for ${merchantId}: ${hours.length} shifts`);
 
-              // Calculate if within business hours
+              // Calculate if within business hours (using cached data)
               const status = this.calculateIfOpen(hours);
               status.merchantId = merchantId;
 

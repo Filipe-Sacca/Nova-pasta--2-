@@ -15,9 +15,18 @@ import { createClient } from '@supabase/supabase-js';
 
 // Import schedulers for initialization
 import { tokenScheduler } from './tokenScheduler';
-import { productSyncScheduler } from './productSyncScheduler';
+// import { productSyncScheduler } from './productSyncScheduler'; // 🔴 DESATIVADO TEMPORARIAMENTE
 import { logCleanupScheduler } from './logCleanupScheduler';
-import { MerchantPollingService } from './merchantPollingService';
+// import { MerchantPollingService } from './merchantPollingService'; // 🔴 DESATIVADO TEMPORARIAMENTE
+
+// Import sync workers and scheduler
+// 🔴 RABBITMQ E POLLING DESATIVADOS TEMPORARIAMENTE
+// Para reativar: descomente as linhas abaixo
+// import { initializeWorkers, stopWorkers } from './sync/workers';
+// import { startSyncScheduler, stopSyncScheduler } from './sync/scheduler';
+
+// ✅ NOVO: Import Status Polling Service (30s)
+import { getStatusPollingService } from './statusPollingService';
 
 // ============================================================================
 // 🚀 REFACTORED IFOOD TOKEN SERVICE - MODULAR ARCHITECTURE
@@ -198,7 +207,11 @@ app.use('*', (req, res) => {
 // ============================================================================
 
 // Initialize merchant polling service
-const merchantPolling = new MerchantPollingService();
+// 🔴 DESATIVADO TEMPORARIAMENTE - Descomente para reativar
+// const merchantPolling = new MerchantPollingService();
+
+// ✅ NOVO: Initialize Status Polling Service (30s interval)
+const statusPolling = getStatusPollingService();
 
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log('\n🎯 ============================================');
@@ -216,15 +229,44 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log('   📦 Schedulers (schedulerRoutes)');
   console.log('   🍽️ Product/Menu (menuRoutes) - REACTIVATED');
   console.log('   🖼️ Image Management (imageRoutes)');
-  console.log('   🔄 Merchant Polling (30s intervals)');
+  // console.log('   🔄 Merchant Polling (30s intervals)'); // 🔴 DESATIVADO
+  console.log('🎯 ============================================');
+  console.log('⚠️  POLLING COMPLETO E RABBITMQ DESATIVADOS');
+  console.log('✅ STATUS POLLING OTIMIZADO ATIVO (30s)');
   console.log('🎯 ============================================\n');
 
+  // 🔴 DESATIVADO TEMPORARIAMENTE
   // Start merchant polling service
+  // try {
+  //   await merchantPolling.start();
+  //   console.log('✅ Merchant polling service started successfully');
+  // } catch (error) {
+  //   console.error('❌ Failed to start merchant polling service:', error);
+  // }
+
+  // 🔴 DESATIVADO TEMPORARIAMENTE
+  // Start sync workers and scheduler
+  // try {
+  //   await initializeWorkers();
+  //   console.log('✅ Sync workers initialized successfully (5 workers ready)');
+
+  //   await startSyncScheduler();
+  //   console.log('✅ Sync scheduler started successfully');
+  //   console.log('   📦 Products sync: every 5 minutes');
+  //   console.log('   📂 Categories sync: every 30 minutes');
+  // } catch (error) {
+  //   console.error('❌ Failed to start sync system:', error);
+  // }
+
+  // ✅ NOVO: Start Status Polling Service (30s interval, optimized)
   try {
-    await merchantPolling.start();
-    console.log('✅ Merchant polling service started successfully');
+    await statusPolling.start();
+    console.log('✅ Status Polling Service started successfully (30s interval)');
+    console.log('   🔄 Monitors merchant status every 30 seconds');
+    console.log('   📋 Uses cached opening hours (no repeated API calls)');
+    console.log('   🚀 Optimized for performance');
   } catch (error) {
-    console.error('❌ Failed to start merchant polling service:', error);
+    console.error('❌ Failed to start Status Polling Service:', error);
   }
 });
 
@@ -234,9 +276,18 @@ process.on('SIGTERM', () => {
 
   // Stop all schedulers and polling
   tokenScheduler.stop();
-  productSyncScheduler.stop();
+  // productSyncScheduler.stop(); // 🔴 DESATIVADO
   logCleanupScheduler.stop();
-  merchantPolling.stop();
+  // merchantPolling.stop(); // 🔴 DESATIVADO
+
+  // ✅ Stop Status Polling Service
+  statusPolling.stop();
+
+  // Stop sync system
+  // 🔴 DESATIVADO TEMPORARIAMENTE
+  // stopSyncScheduler();
+  // stopWorkers();
+  console.log('✅ Active services stopped');
 
   server.close(() => {
     console.log('✅ Server closed successfully');
@@ -249,9 +300,18 @@ process.on('SIGINT', () => {
 
   // Stop all schedulers and polling
   tokenScheduler.stop();
-  productSyncScheduler.stop();
+  // productSyncScheduler.stop(); // 🔴 DESATIVADO
   logCleanupScheduler.stop();
-  merchantPolling.stop();
+  // merchantPolling.stop(); // 🔴 DESATIVADO
+
+  // ✅ Stop Status Polling Service
+  statusPolling.stop();
+
+  // Stop sync system
+  // 🔴 DESATIVADO TEMPORARIAMENTE
+  // stopSyncScheduler();
+  // stopWorkers();
+  console.log('✅ Active services stopped');
 
   server.close(() => {
     console.log('✅ Server closed successfully');

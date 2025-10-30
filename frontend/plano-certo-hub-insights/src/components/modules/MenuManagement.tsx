@@ -376,7 +376,7 @@ export const MenuManagement = () => {
   // Função auxiliar para obter o token de acesso do iFood
   const getIfoodAccessToken = () => {
     // Client Secret configurado para busca de token
-    const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+    const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
     // DEBUG: Verificar o estado dos tokens
     console.log('🔍 [DEBUG] Estado dos tokens:', {
@@ -1146,10 +1146,10 @@ Renove o token na página de Tokens do iFood`);
     <div className="space-y-6 animate-fade-in pb-6 pt-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 mt-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Gerenciamento de Cardápios
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Gerencie cardápios das lojas conectadas ao iFood
           </p>
         </div>
@@ -1182,10 +1182,9 @@ Renove o token na página de Tokens do iFood`);
 
       {selectedClient && (
         <Tabs defaultValue="items" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="items">Itens do Cardápio</TabsTrigger>
             <TabsTrigger value="categories">Categorias</TabsTrigger>
-            <TabsTrigger value="settings">Configurações</TabsTrigger>
           </TabsList>
 
           <TabsContent value="items" className="space-y-6">
@@ -2035,67 +2034,6 @@ Renove o token na página de Tokens do iFood`);
               </CardContent>
             </Card>
 
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configurações do Cardápio</CardTitle>
-                <CardDescription>
-                  Configure as opções de sincronização e exibição
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="p-4 bg-yellow-50 rounded-lg">
-                    <h4 className="font-medium text-yellow-800 mb-2">⚠️ Funcionalidade em Desenvolvimento</h4>
-                    <p className="text-sm text-yellow-700">
-                      A integração completa com a API Catalog do iFood está sendo desenvolvida. 
-                      Em breve você poderá editar preços, descrições, fotos e todas as informações 
-                      do cardápio diretamente aqui e sincronizar com o iFood automaticamente.
-                    </p>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="font-medium mb-3">Sincronização Automática</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Preços</span>
-                          <Badge variant="outline">Em breve</Badge>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Descrições</span>
-                          <Badge variant="outline">Em breve</Badge>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Fotos</span>
-                          <Badge variant="outline">Em breve</Badge>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 className="font-medium mb-3">Recursos Disponíveis</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Visualização do Cardápio</span>
-                          <Badge className="bg-green-100 text-green-800">Ativo</Badge>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Análise por Categorias</span>
-                          <Badge className="bg-green-100 text-green-800">Ativo</Badge>
-                        </div>
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
-                          <span className="text-sm">Status dos Itens</span>
-                          <Badge className="bg-green-100 text-green-800">Ativo</Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
       )}

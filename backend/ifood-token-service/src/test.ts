@@ -21,7 +21,7 @@ async function testTokenService() {
 
   // Test credentials (from JSON file)
   const testClientId = 'f133bf28-ff34-47c3-827d-dd2b662f0363';
-  const testClientSecret = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+  const testClientSecret = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
   const testUserId = '4bd7433f-bc74-471f-ac0d-7d631bd5038c';
 
   // Initialize service

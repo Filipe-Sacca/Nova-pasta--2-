@@ -1,0 +1,39 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo baseada na imagem fornecida - Sacola com seta -->
+  <defs>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Sacola principal -->
+  <path d="M 50 70 L 50 170 Q 50 180 60 180 L 140 180 Q 150 180 150 170 L 150 70 Z"
+        fill="#C85A28"
+        stroke="#A64820"
+        stroke-width="5"
+        filter="url(#shadow)"/>
+
+  <!-- Alça esquerda -->
+  <path d="M 50 70 Q 50 35 70 35 Q 78 35 78 45"
+        fill="none"
+        stroke="#A64820"
+        stroke-width="5"
+        stroke-linecap="round"/>
+
+  <!-- Alça direita -->
+  <path d="M 150 70 Q 150 35 130 35 Q 122 35 122 45"
+        fill="none"
+        stroke="#A64820"
+        stroke-width="5"
+        stroke-linecap="round"/>
+
+  <!-- Seta de crescimento (branca) -->
+  <g filter="url(#shadow)">
+    <path d="M 70 145 L 130 85"
+          stroke="white"
+          stroke-width="10"
+          stroke-linecap="round"/>
+    <path d="M 108 90 L 130 85 L 125 107"
+          fill="white"/>
+  </g>
+</svg>

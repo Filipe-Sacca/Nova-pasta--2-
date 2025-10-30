@@ -24,14 +24,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import DynamicIntegrationStatus from './DynamicIntegrationStatus';
 import ConnectedAPIsCard from './ConnectedAPIsCard';
 import { useIfoodSyncStatus } from '@/hooks/useIfoodSyncStatus';
-import { 
-  Settings, 
+import {
+  Settings,
   Key,
-  Store, 
-  RefreshCw, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
+  Store,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
   Globe,
   Code,
   Database,
@@ -438,10 +438,10 @@ const MerchantsCard = ({ user }: { user: any }) => {
               <Store className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-lg font-semibold text-foreground">
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">
                 Lojas iFood
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Sincronizar lojas via serviço local
               </p>
             </div>
@@ -560,7 +560,7 @@ const IndividualMerchantSync = ({ user }: { user: any }) => {
         <div className="space-y-4">
           <div className="flex space-x-3">
             <div className="flex-1">
-              <Label htmlFor="merchantId" className="text-sm font-medium text-foreground">
+              <Label htmlFor="merchantId" className="text-sm font-medium text-gray-900 dark:text-white">
                 Merchant ID
               </Label>
               <Input
@@ -854,7 +854,7 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                 >
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="font-medium text-foreground text-sm">
+                      <h4 className="font-medium text-gray-900 dark:text-white text-sm">
                         {merchant.name}
                       </h4>
                       
@@ -955,22 +955,16 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
       description: 'Gestão do catálogo de produtos',
       status: isConnected ? 'connected' : 'disconnected',
       endpoint: 'https://merchant-api.ifood.com.br/catalog/v1.0/'
-    },
-    {
-      name: 'Financial API',
-      description: 'Dados financeiros e faturamento',
-      status: isConnected ? 'connected' : 'disconnected',
-      endpoint: 'https://merchant-api.ifood.com.br/financial/v1.0/'
     }
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
           Configuração API iFood
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-gray-600 dark:text-gray-400">
           Configure suas credenciais de desenvolvedor para integração com o iFood
         </p>
       </div>
@@ -995,10 +989,10 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                     )}
                   </div>
                   <div>
-                    <p className="text-lg font-semibold text-foreground">
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
                       Status da Conexão
                     </p>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
                       {isConnected ? 'Conectado ao iFood API' : 'Desconectado'}
                     </p>
                   </div>
@@ -1147,7 +1141,7 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
             <CardContent>
               <div className="space-y-4">
                 {apiEndpoints.map((endpoint, index) => (
-                  <div 
+                  <div
                     key={index}
                     className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
                   >
@@ -1160,9 +1154,9 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                         }`} />
                       </div>
                       <div>
-                        <h3 className="font-medium text-foreground">{endpoint.name}</h3>
-                        <p className="text-sm text-muted-foreground">{endpoint.description}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{endpoint.endpoint}</p>
+                        <h3 className="font-medium text-gray-900 dark:text-white">{endpoint.name}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{endpoint.description}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{endpoint.endpoint}</p>
                       </div>
                     </div>
                     <Badge className={
@@ -1188,8 +1182,8 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-medium text-foreground mb-2">Portal do Desenvolvedor</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Portal do Desenvolvedor</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Acesse o portal oficial do iFood para desenvolvedores
                   </p>
                   <Button variant="outline" size="sm" className="w-full">
@@ -1199,8 +1193,8 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                 </div>
 
                 <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-medium text-foreground mb-2">Documentação da API</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Documentação da API</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Documentação completa da API do iFood
                   </p>
                   <Button variant="outline" size="sm" className="w-full">
@@ -1210,8 +1204,8 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                 </div>
 
                 <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-medium text-foreground mb-2">Ambiente Sandbox</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Ambiente Sandbox</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Teste suas integrações em ambiente seguro
                   </p>
                   <Button variant="outline" size="sm" className="w-full">
@@ -1221,8 +1215,8 @@ const SyncedMerchantsCard = ({ user }: { user: any }) => {
                 </div>
 
                 <div className="p-4 border border-gray-200 rounded-lg">
-                  <h3 className="font-medium text-foreground mb-2">Suporte Técnico</h3>
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">Suporte Técnico</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                     Canal de suporte para desenvolvedores
                   </p>
                   <Button variant="outline" size="sm" className="w-full">

@@ -1,0 +1,39 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo em círculo conforme imagem 2 -->
+  <defs>
+    <filter id="shadow-circle">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Círculo laranja de fundo -->
+  <circle cx="100" cy="100" r="90" fill="#C85A28" filter="url(#shadow-circle)"/>
+
+  <!-- Sacola branca -->
+  <path d="M 55 75 L 55 145 Q 55 152 62 152 L 138 152 Q 145 152 145 145 L 145 75 Z"
+        fill="white"/>
+
+  <!-- Alça esquerda branca -->
+  <path d="M 55 75 Q 55 52 70 52 Q 76 52 76 60"
+        fill="none"
+        stroke="white"
+        stroke-width="4"
+        stroke-linecap="round"/>
+
+  <!-- Alça direita branca -->
+  <path d="M 145 75 Q 145 52 130 52 Q 124 52 124 60"
+        fill="none"
+        stroke="white"
+        stroke-width="4"
+        stroke-linecap="round"/>
+
+  <!-- Seta laranja dentro da sacola -->
+  <g>
+    <path d="M 70 125 L 120 75"
+          stroke="#C85A28"
+          stroke-width="7"
+          stroke-linecap="round"/>
+    <path d="M 102 80 L 120 75 L 115 93"
+          fill="#C85A28"/>
+  </g>
+</svg>

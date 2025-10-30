@@ -143,64 +143,7 @@ export const Header = ({
               <Menu className="h-5 w-5" />
             </Button>
           )}
-          {/* Logomarca da Plano Certo Delivery */}
-                     <div className="logo-container flex items-center space-x-3 border-0 outline-0" style={{ border: 'none', textDecoration: 'none' }}>
-             <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center flex-shrink-0 border-0 outline-0" style={{ boxShadow: 'none', border: 'none' }}>
-               <span className="text-white font-bold text-lg select-none" style={{ border: 'none', textDecoration: 'none', outline: 'none', boxShadow: 'none' }}>PC</span>
-             </div>
-            <div className="flex flex-col border-0 outline-0">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight no-underline border-0 outline-0 decoration-0" style={{ textDecoration: 'none', border: 'none', borderBottom: 'none' }}>
-                Plano Certo
-              </h1>
-              <p className="text-xs text-orange-500 font-semibold tracking-wide leading-none no-underline border-0 outline-0 decoration-0" style={{ textDecoration: 'none', border: 'none', borderBottom: 'none' }}>
-                DELIVERY HUB
-              </p>
-            </div>
-          </div>
         </div>
-        {/* Filtros Globais */}
-        {!isMobile && (
-          <>
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4 text-gray-500" />
-              <Select value={selectedClient} onValueChange={onClientChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Selecionar cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((client) => (
-                    <SelectItem key={client.value} value={client.value}>
-                      {client.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-gray-500" />
-              {selectedPeriod === 'custom' && onDateRangeChange ? (
-                <DatePickerWithRange
-                  date={dateRange}
-                  onDateChange={onDateRangeChange}
-                  className="w-64"
-                />
-              ) : (
-                <Select value={selectedPeriod} onValueChange={onPeriodChange}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {periods.map((period) => (
-                      <SelectItem key={period.value} value={period.value}>
-                        {period.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </>
-        )}
         <div className="flex items-center space-x-4">
           {/* Theme Toggle */}
           <Button 

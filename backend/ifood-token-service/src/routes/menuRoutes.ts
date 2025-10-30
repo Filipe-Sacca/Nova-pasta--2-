@@ -26,7 +26,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`📚 Getting catalogs for merchant: ${merchantId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -187,7 +187,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`📂 Creating category for merchant: ${merchantId}, catalog: ${catalogId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -295,7 +295,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`📂 [SIMPLE-CATEGORY] Creating category for merchant: ${merchantId}`);
 
       // Get access token
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -435,7 +435,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`📂 Getting categories for merchant: ${merchantId}, catalog: ${catalogId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -533,7 +533,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
 
       // Get token using client_secret
       console.log('🔑 [WORKING] Getting access token...');
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -976,7 +976,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
       // Step 1: Get access token using fixed client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       console.log(`🔑 [SIMPLE] Searching token by client_secret: ${TARGET_CLIENT_SECRET.substring(0, 10)}...`);
 
@@ -1075,7 +1075,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`🍕 Creating/updating item for merchant: ${merchantId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -1150,7 +1150,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -1245,7 +1245,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -1351,7 +1351,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       }
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -1442,7 +1442,7 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
       console.log(`🔄 Getting item ${itemId} from merchant ${merchantId} and syncing to database...`);
 
       // Get access token
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')

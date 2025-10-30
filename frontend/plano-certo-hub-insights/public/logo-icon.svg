@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Ícone simplificado - apenas a sacola -->
+  <circle cx="32" cy="32" r="30" fill="#f97316"/>
+  <path d="M16 24 L16 50 Q16 54 20 54 L44 54 Q48 54 48 50 L48 24 Z" fill="white"/>
+  <path d="M16 24 Q16 12 22 12 Q26 12 26 16" fill="none" stroke="white" stroke-width="2"/>
+  <path d="M48 24 Q48 12 42 12 Q38 12 38 16" fill="none" stroke="white" stroke-width="2"/>
+  <!-- Seta pequena -->
+  <path d="M22 42 L42 22" stroke="#f97316" stroke-width="3" stroke-linecap="round"/>
+  <path d="M34 24 L42 22 L40 30" fill="#f97316"/>
+</svg>

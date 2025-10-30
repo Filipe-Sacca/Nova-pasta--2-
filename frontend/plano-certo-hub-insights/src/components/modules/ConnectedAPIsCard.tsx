@@ -8,7 +8,7 @@ const ConnectedAPIsCard = () => {
   
   // Contar apenas APIs conectadas (sem incluir Authentication que foi removido)
   const connectedCount = status.filter(api => api.status === 'connected').length;
-  const totalCount = 3; // Merchant API, Catalog API, Financial API
+  const totalCount = 2; // Merchant API, Catalog API
   
   const getStatusIcon = () => {
     if (loading) {
@@ -47,10 +47,10 @@ const ConnectedAPIsCard = () => {
             {getStatusIcon()}
           </div>
           <div>
-            <p className="text-2xl font-bold text-foreground">
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {loading ? '...' : connectedCount}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               {getStatusText()}
             </p>
           </div>

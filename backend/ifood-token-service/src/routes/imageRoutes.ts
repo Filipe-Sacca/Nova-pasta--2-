@@ -35,7 +35,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`🖼️ Uploading image for product: ${productId} in merchant: ${merchantId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -153,7 +153,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`✅ Product found with imagePath: ${imagePath}`);
 
       // Get access token
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -237,7 +237,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`📋 Getting product from iFood: ${productId} from merchant: ${merchantId}`);
 
       // Get access token
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -384,7 +384,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`🖼️ Image upload for merchant: ${merchantId}`);
 
       // Get access token using client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       const { data: tokenData, error: tokenError } = await supabase
         .from('ifood_tokens')
@@ -468,7 +468,7 @@ export function createImageRoutes(deps: ImageRouteDependencies) {
       console.log(`📦 Items to update:`, itemsToUpdate);
 
       // Get access token using fixed client_secret
-      const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+      const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
       console.log(`🔑 Buscando token por client_secret: ${TARGET_CLIENT_SECRET.substring(0, 10)}...`);
 

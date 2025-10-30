@@ -129,7 +129,7 @@ const ifoodPayload = {
 
 #### 1. Token Management
 ```typescript
-const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iod...';
+const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 const { data: tokenData } = await supabase
   .from('ifood_tokens')
   .select('access_token')
@@ -153,7 +153,7 @@ console.log(`📡 [OPTIONS-PRICE] iFood response status:`, status);
 
 ### Configurações Importantes
 - **Porta do Backend:** 8093 (definida em `server.ts` linha 42)
-- **Token Target:** `gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149`
+- **Token Target:** `rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3`
 - **API Base:** `https://merchant-api.ifood.com.br/catalog/v2.0`
 - **Tabela do Banco:** `ifood_complements` (campos: `option_id`, `context_price`, `status`)
 

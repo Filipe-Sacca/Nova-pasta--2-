@@ -139,7 +139,7 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-6 w-6 animate-spin" />
-        <span className="ml-2 text-white">Verificando status das integrações...</span>
+        <span className="ml-2 text-gray-900 dark:text-white">Verificando status das integrações...</span>
       </div>
     );
   }
@@ -149,7 +149,7 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
       {/* Header com botão de atualizar */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-sm text-white">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Status atualizado automaticamente baseado em dados reais
           </p>
         </div>
@@ -165,7 +165,7 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
           ) : (
             <RefreshCw className="h-4 w-4" />
           )}
-          <span className="text-white">Atualizar Status</span>
+          <span>Atualizar Status</span>
         </Button>
       </div>
 
@@ -174,27 +174,27 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium text-white">Horas de Pico Semanais</h3>
-              <p className="text-sm text-white opacity-75">
-                {peakHours.lunchHours > 0 || peakHours.dinnerHours > 0 
-                  ? "Baseado nos horários de funcionamento configurados" 
+              <h3 className="font-medium text-gray-900 dark:text-white">Horas de Pico Semanais</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                {peakHours.lunchHours > 0 || peakHours.dinnerHours > 0
+                  ? "Baseado nos horários de funcionamento configurados"
                   : "Calculando baseado em horário padrão..."}
               </p>
             </div>
             <div className="flex space-x-6">
               <div className="text-center">
-                <div className="text-lg font-bold text-white">
+                <div className="text-lg font-bold text-gray-900 dark:text-white">
                   {peakHours.lunchHours}h
                 </div>
-                <div className="text-xs text-white opacity-75">
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   Almoço (11h-15h)
                 </div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-white">
+                <div className="text-lg font-bold text-gray-900 dark:text-white">
                   {peakHours.dinnerHours}h
                 </div>
-                <div className="text-xs text-white opacity-75">
+                <div className="text-xs text-gray-600 dark:text-gray-400">
                   Janta (18h-23h)
                 </div>
               </div>
@@ -211,15 +211,15 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
                 {getStatusIcon(api.status)}
               </div>
               <div>
-                <h3 className="font-medium text-white">{api.name}</h3>
-                <p className="text-sm text-white">{api.description}</p>
+                <h3 className="font-medium text-gray-900 dark:text-white">{api.name}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">{api.description}</p>
                 {api.lastSync && (
-                  <p className="text-xs text-white mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Última sincronização: {api.lastSync}
                   </p>
                 )}
                 {api.count !== undefined && api.count > 0 && (
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                     {api.count} item{api.count !== 1 ? 's' : ''} sincronizado{api.count !== 1 ? 's' : ''}
                   </p>
                 )}
@@ -239,7 +239,7 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
                   ) : (
                     <Package className="h-4 w-4" />
                   )}
-                  <span className="text-white">Sincronizar Produtos</span>
+                  <span>Sincronizar Produtos</span>
                 </Button>
               )}
               {getStatusBadge(api.status)}
@@ -248,13 +248,13 @@ const DynamicIntegrationStatus = ({ onTokenGenerated }: DynamicIntegrationStatus
         </Card>
       ))}
       
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
         <div className="flex items-start space-x-2">
-          <RefreshCw className="h-5 w-5 text-blue-600 mt-0.5" />
+          <RefreshCw className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
           <div>
-            <h4 className="font-medium text-blue-900">Sistema de Status Dinâmico</h4>
-            <p className="text-sm text-blue-700 mt-1">
-              Os status acima são atualizados automaticamente baseado nos dados realmente sincronizados. 
+            <h4 className="font-medium text-blue-900 dark:text-blue-300">Sistema de Status Dinâmico</h4>
+            <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+              Os status acima são atualizados automaticamente baseado nos dados realmente sincronizados.
               Uma API só aparece como "Conectado" quando há dados válidos no sistema.
             </p>
           </div>

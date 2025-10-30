@@ -170,47 +170,13 @@ export const useIfoodSyncStatus = () => {
       console.log('📦 [PRODUCT CHECK] Produtos encontrados:', productsData?.length || 0);
       console.log('❌ [PRODUCT CHECK] Erro produtos:', productsError?.message || 'Nenhum');
 
-      // 4. Verificar se há dados financeiros (Financial API) - TEMPORARIAMENTE DESABILITADO
-      // A tabela financial_data ainda não foi criada no Supabase
-      let financialData = null;
-      let financialError = null;
-      
-      console.log('🔍 [STEP 4] Verificando dados financeiros...');
-      console.log('⚠️ [FINANCIAL CHECK] Tabela financial_data ainda não implementada - pulando verificação');
-      
-      // TODO: Descomentar quando a tabela financial_data for criada no Supabase
-      /*
-      try {
-        const { data, error } = await supabase
-          .from('financial_data')
-          .select('id, updated_at')
-          .eq('user_id', user.id);
-        financialData = data;
-        financialError = error;
-        
-        if (error) {
-          console.log('⚠️ [FINANCIAL CHECK] Erro:', error.message);
-          if (error.code === '42P01') {
-            console.log('📋 [FINANCIAL CHECK] Tabela financial_data não existe - isso é normal');
-            financialError = null;
-          }
-        } else {
-          console.log('💰 [FINANCIAL CHECK] Dados financeiros encontrados:', data?.length || 0);
-        }
-      } catch (error) {
-        console.log('⚠️ [FINANCIAL CHECK] Tabela financial_data não encontrada, isso é normal');
-        financialData = null;
-        financialError = null;
-      }
-      */
-
       const syncStatus: IfoodSyncStatus[] = [
         {
           name: 'Merchant API',
           description: 'Dados dos restaurantes e configurações',
           status: (merchantsData && merchantsData.length > 0 && !merchantsError) ? 'connected' : 'disconnected',
-          lastSync: merchantsData?.[0]?.last_sync_at ? 
-            formatLastSync(merchantsData[0].last_sync_at) : 
+          lastSync: merchantsData?.[0]?.last_sync_at ?
+            formatLastSync(merchantsData[0].last_sync_at) :
             merchantsData?.[0]?.updated_at ? formatLastSync(merchantsData[0].updated_at) : undefined,
           count: merchantsData?.length || 0
         },
@@ -218,16 +184,9 @@ export const useIfoodSyncStatus = () => {
           name: 'Catalog API',
           description: 'Gestão do catálogo de produtos',
           status: (productsData && productsData.length > 0 && !productsError) ? 'connected' : 'disconnected',
-          lastSync: productsData?.[0]?.updated_at ? 
+          lastSync: productsData?.[0]?.updated_at ?
             formatLastSync(productsData[0].updated_at) : undefined,
           count: productsData?.length || 0
-        },
-        {
-          name: 'Financial API',
-          description: 'Dados financeiros e faturamento (em desenvolvimento)',
-          status: 'disconnected', // Temporariamente desabilitado
-          lastSync: undefined,
-          count: 0
         }
       ];
 

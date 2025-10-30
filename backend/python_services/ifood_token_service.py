@@ -320,7 +320,7 @@ if __name__ == "__main__":
     
     # Test credentials (use your actual test credentials)
     test_client_id = "f133bf28-ff34-47c3-827d-dd2b662f0363"
-    test_client_secret = "gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149"
+    test_client_secret = "rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3"
     test_user_id = "4bd7433f-bc74-471f-ac0d-7d631bd5038c"
     
     # Initialize service

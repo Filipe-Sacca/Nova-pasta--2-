@@ -165,7 +165,7 @@ IFOOD_API_URL=https://merchant-api.ifood.com.br/authentication/v1.0/oauth/token
 ### **Fluxo de Autenticação**
 ```typescript
 // Em TODOS os endpoints de menuRoutes.ts:
-const TARGET_CLIENT_SECRET = 'gh1x4aatcrge25wtv6j6qx9b1lqktt3vupjxijp10iodlojmj1vytvibqzgai5z0zjd3t5drhxij5ifwf1nlw09z06mt92rx149';
+const TARGET_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
 
 const { data: tokenData } = await supabase
   .from('ifood_tokens')

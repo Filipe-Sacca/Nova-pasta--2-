@@ -123,10 +123,10 @@ export const StoreMonitoring = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="space-y-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Monitoramento de Lojas
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Acompanhe o status das lojas em tempo real
           </p>
         </div>
@@ -190,10 +190,10 @@ export const StoreMonitoring = () => {
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-2xl font-bold text-white mb-1">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {isLoading ? '...' : onlineStores}
                 </p>
-                <p className="text-sm text-white">Lojas Disponíveis</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Lojas Disponíveis</p>
               </div>
             </div>
           </CardContent>
@@ -206,10 +206,10 @@ export const StoreMonitoring = () => {
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-2xl font-bold text-white mb-1">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {isLoading ? '...' : offlineStores}
                 </p>
-                <p className="text-sm text-white">Lojas Indisponíveis</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Lojas Indisponíveis</p>
               </div>
             </div>
           </CardContent>
@@ -222,10 +222,10 @@ export const StoreMonitoring = () => {
                 <Store className="h-6 w-6 text-blue-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-2xl font-bold text-white mb-1">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {isLoading ? '...' : totalStores}
                 </p>
-                <p className="text-sm text-white">Total de Lojas</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Total de Lojas</p>
               </div>
             </div>
           </CardContent>
@@ -238,10 +238,10 @@ export const StoreMonitoring = () => {
                 <Pause className="h-6 w-6 text-yellow-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-2xl font-bold text-white mb-1">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {pausedProductsLoading ? '...' : totalPausedProducts}
                 </p>
-                <p className="text-sm text-white">Produtos Pausados</p>
+                <p className="text-sm text-gray-600 dark:text-gray-300">Produtos Pausados</p>
               </div>
             </div>
           </CardContent>
@@ -380,8 +380,8 @@ export const StoreMonitoring = () => {
                   <div key={storeData.merchantId} className="border border-red-200 rounded-lg p-4 bg-red-50/30">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-2">
-                        <Store className="h-4 w-4 text-gray-600" />
-                        <h3 className="font-medium">{storeData.merchantName}</h3>
+                        <Store className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                        <h3 className="font-medium text-gray-900 dark:text-white">{storeData.merchantName}</h3>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge variant="destructive" className="text-red-700">
@@ -395,12 +395,12 @@ export const StoreMonitoring = () => {
                         <div key={product.id} className="border border-red-300 rounded p-3 bg-white hover:bg-red-50 transition-colors">
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{product.name}</p>
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="font-medium text-sm text-gray-900 truncate">{product.name}</p>
+                              <p className="text-xs text-gray-700 mt-1">
                                 R$ {product.price?.toFixed(2) || '0,00'}
                               </p>
                               {product.category && (
-                                <p className="text-xs text-gray-400 mt-1">{product.category}</p>
+                                <p className="text-xs text-gray-600 mt-1">{product.category}</p>
                               )}
                             </div>
                             <Badge variant="destructive" className="ml-2 text-xs">
@@ -412,7 +412,7 @@ export const StoreMonitoring = () => {
                     </div>
                     
                     {storeData.pausedProducts.length > 6 && (
-                      <p className="text-xs text-red-600 mt-3 text-center font-medium">
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-3 text-center font-medium">
                         +{storeData.pausedProducts.length - 6} produtos pausados adicionais
                       </p>
                     )}

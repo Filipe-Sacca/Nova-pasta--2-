@@ -920,25 +920,25 @@ export default function OpeningHoursManager() {
           <div className="grid grid-cols-3 gap-4 mb-8">
             <Card className="text-center py-8">
               <CardContent className="pt-0">
-                <div className="text-4xl font-bold text-white">{weeklyHours}h</div>
-                <div className="text-sm text-white mt-2">Total na semana</div>
+                <div className="text-4xl font-bold text-gray-900 dark:text-white">{weeklyHours}h</div>
+                <div className="text-sm text-gray-600 dark:text-gray-300 mt-2">Total na semana</div>
               </CardContent>
             </Card>
-            
+
             <Card className="text-center py-8">
               <CardContent className="pt-0">
-                <div className="text-4xl font-bold text-white">{lunchHours}h</div>
-                <div className="text-sm text-red-500 mt-2">
+                <div className="text-4xl font-bold text-gray-900 dark:text-white">{lunchHours}h</div>
+                <div className="text-sm text-red-600 dark:text-red-400 mt-2">
                   <AlertCircle className="h-4 w-4 inline mr-1" />
                   No pico de almoço iFood
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="text-center py-8">
               <CardContent className="pt-0">
-                <div className="text-4xl font-bold text-white">{dinnerHours}h</div>
-                <div className="text-sm text-red-500 mt-2">
+                <div className="text-4xl font-bold text-gray-900 dark:text-white">{dinnerHours}h</div>
+                <div className="text-sm text-red-600 dark:text-red-400 mt-2">
                   <AlertCircle className="h-4 w-4 inline mr-1" />
                   No pico de janta iFood
                 </div>

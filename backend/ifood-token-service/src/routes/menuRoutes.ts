@@ -493,14 +493,16 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
     }
   });
 
-  // WORKING Smart product sync - direct iFood API calls without IFoodProductService
+  // OPTIMIZED Smart product sync - Parallel execution with batch operations
   router.post('/merchants/:merchantId/products/smart-sync-working', async (req, res) => {
-    console.log('🚨 [WORKING SYNC] Endpoint hit - ENTRY POINT');
+    const syncStartTime = Date.now();
+    console.log('🚀 [OPTIMIZED SYNC] Endpoint hit - ENTRY POINT');
+
     try {
       const { merchantId } = req.params;
       const { user_id, quick_mode } = req.body;
 
-      console.log(`🔥 [WORKING] Sync for merchant: ${merchantId}, user: ${user_id}, quick_mode: ${quick_mode}`);
+      console.log(`🔥 [OPTIMIZED] Sync for merchant: ${merchantId}, user: ${user_id}, quick_mode: ${quick_mode}`);
 
       // Quick mode: just return existing data
       if (quick_mode !== false) {
@@ -639,13 +641,20 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         name: cat.name
       }));
 
-      // Fetch products from iFood API
-      let allIfoodProducts: any[] = [];
+      // ============================================================================
+      // 🚀 OTIMIZAÇÃO 1.1: PARALELIZAÇÃO - Fetch ALL categories in parallel
+      // ============================================================================
+      const categoriesFetchStart = Date.now();
+      console.log(`🚀 [OPTIMIZED] Fetching products from ${categoriesData.length} categories IN PARALLEL...`);
 
-      for (const category of categoriesData) {
-        console.log(`🔍 [WORKING] Fetching products from category: ${category.name}`);
+      // Initialize timing variables
+      let categoriesFetchTime = '0';
+      let processingTime = '0';
+      let complementsBatchTime = '0';
+      let productsComparisonTime = '0';
 
-        // ✅ CORRECTED: Use the /categories/{categoryId}/items endpoint that returns optionGroups
+      // Create promises for all categories
+      const categoryPromises = categoriesData.map(async (category: any) => {
         const itemsUrl = `https://merchant-api.ifood.com.br/catalog/v2.0/merchants/${merchantId}/categories/${category.category_id}/items`;
 
         try {
@@ -659,122 +668,177 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
 
           if (itemsResponse.ok) {
             const itemsData = await itemsResponse.json();
-            if (itemsData && itemsData.items && itemsData.items.length > 0) {
-              console.log(`✅ [WORKING] Found ${itemsData.items.length} products in ${category.name}`);
+            return {
+              success: true,
+              category,
+              itemsData
+            };
+          } else {
+            console.warn(`⚠️ [OPTIMIZED] Failed to fetch items from category ${category.name}: ${itemsResponse.status}`);
+            return {
+              success: false,
+              category,
+              itemsData: null
+            };
+          }
+        } catch (error) {
+          console.error(`❌ [OPTIMIZED] Error fetching from category ${category.name}:`, error);
+          return {
+            success: false,
+            category,
+            itemsData: null
+          };
+        }
+      });
 
-              // DEBUG: Log complete response structure
-              console.log(`🔍 [WORKING] Response keys:`, Object.keys(itemsData));
-              console.log(`🔍 [WORKING] Has optionGroups:`, !!itemsData.optionGroups);
-              console.log(`🔍 [WORKING] Has products:`, !!itemsData.products);
+      // Execute ALL category fetches in parallel
+      const categoryResults = await Promise.all(categoryPromises);
+      const categoriesFetchEnd = Date.now();
+      categoriesFetchTime = ((categoriesFetchEnd - categoriesFetchStart) / 1000).toFixed(2);
 
-              // ============================================================================
-              // 🆕 Criar Maps de optionGroups e products para lookup
-              // ============================================================================
-              const optionGroupsMap = new Map();
-              const productsMap = new Map();
+      console.log(`✅ [OPTIMIZED] All categories fetched in ${categoriesFetchTime}s (parallel execution)`);
+      console.log(`📊 [OPTIMIZED] Success: ${categoryResults.filter(r => r.success).length}/${categoryResults.length} categories`);
 
-              // Map optionGroups pelo ID
-              if (itemsData.optionGroups && itemsData.optionGroups.length > 0) {
-                for (const optionGroup of itemsData.optionGroups) {
-                  optionGroupsMap.set(optionGroup.id, optionGroup);
-                }
-                console.log(`📋 [WORKING] Found ${itemsData.optionGroups.length} option groups`);
-              } else {
-                console.log(`⚠️ [WORKING] No optionGroups found in iFood API response for ${category.name}`);
-              }
+      // ============================================================================
+      // 🚀 OTIMIZAÇÃO 1.2 & 1.3: BATCH ACCUMULATION - Process all results
+      // ============================================================================
+      const processingStart = Date.now();
+      console.log(`⚙️ [OPTIMIZED] Processing category results and accumulating for batch operations...`);
 
-              // Map products pelo ID
-              if (itemsData.products && itemsData.products.length > 0) {
-                for (const product of itemsData.products) {
-                  productsMap.set(product.id, product);
-                }
-              }
+      let allIfoodProducts: any[] = [];
+      const allComplementsToUpsert: any[] = [];
 
-              // Process products
-              for (const item of itemsData.items) {
-                // Buscar product correspondente
-                const product = productsMap.get(item.productId);
+      for (const result of categoryResults) {
+        if (!result.success || !result.itemsData) continue;
 
-                // Coletar option_ids do produto
-                const optionIds: string[] = [];
+        const { category, itemsData } = result;
 
-                if (product && product.optionGroups && product.optionGroups.length > 0) {
-                  for (const productOptionGroup of product.optionGroups) {
-                    // Buscar o optionGroup completo
-                    const optionGroup = optionGroupsMap.get(productOptionGroup.id);
+        if (itemsData && itemsData.items && itemsData.items.length > 0) {
+          console.log(`✅ [OPTIMIZED] Processing ${itemsData.items.length} products from ${category.name}`);
 
-                    if (optionGroup && optionGroup.optionIds && optionGroup.optionIds.length > 0) {
-                      // Adicionar todos os option_ids deste grupo
-                      optionIds.push(...optionGroup.optionIds);
-                    }
-                  }
-                }
+          // Create Maps for lookups
+          const optionGroupsMap = new Map();
+          const productsMap = new Map();
 
-                console.log(`🎯 [WORKING] Product ${product?.name || item.id} has ${optionIds.length} option_ids`);
+          // Map optionGroups
+          if (itemsData.optionGroups && itemsData.optionGroups.length > 0) {
+            for (const optionGroup of itemsData.optionGroups) {
+              optionGroupsMap.set(optionGroup.id, optionGroup);
+            }
+          }
 
-                allIfoodProducts.push({
-                  id: item.id,                    // ✅ item.id (para item_id column)
-                  productId: product?.id || item.productId,  // ✅ product.id (para product_id column)
-                  name: product?.name || item.name || 'Unknown',
-                  description: product?.description || item.description || null,
-                  status: item.status,
-                  price: item.price?.value || 0,
-                  imagePath: product?.imagePath || item.imagePath || null,
-                  category: category.name,
-                  category_id: category.category_id,
-                  option_ids: optionIds.length > 0 ? optionIds : null  // Array de option_ids
-                });
-              }
+          // Map products
+          if (itemsData.products && itemsData.products.length > 0) {
+            for (const product of itemsData.products) {
+              productsMap.set(product.id, product);
+            }
+          }
 
-              // ============================================================================
-              // 🆕 SALVAR COMPLEMENTOS (options) na tabela ifood_complements
-              // ============================================================================
-              if (itemsData.options && itemsData.options.length > 0) {
-                console.log(`🍴 [WORKING] Processing ${itemsData.options.length} complements for category ${category.name}`);
+          // Process products
+          for (const item of itemsData.items) {
+            const product = productsMap.get(item.productId);
 
-                for (const option of itemsData.options) {
-                  // Buscar produto do complemento
-                  const optionProduct = productsMap.get(option.productId);
+            // Collect option_ids
+            const optionIds: string[] = [];
 
-                  // Pegar preço do contextModifier (primeiro DEFAULT)
-                  const contextPrice = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.price?.value || 0;
-                  const contextStatus = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.status || option.status || 'AVAILABLE';
+            if (product && product.optionGroups && product.optionGroups.length > 0) {
+              for (const productOptionGroup of product.optionGroups) {
+                const optionGroup = optionGroupsMap.get(productOptionGroup.id);
 
-                  const complementData = {
-                    merchant_id: merchantId,
-                    option_id: option.id,
-                    name: optionProduct?.name || 'Sem nome',
-                    description: optionProduct?.description || null,
-                    imagePath: optionProduct?.imagePath || null,
-                    context_price: contextPrice,
-                    status: contextStatus,
-                    product_id: option.productId
-                  };
-
-                  console.log(`💾 [WORKING] Saving complement: ${complementData.name} (option_id: ${option.id}, price: ${contextPrice})`);
-
-                  // Usar upsert com constraint única option_id
-                  const { error: complementError } = await supabase
-                    .from('ifood_complements')
-                    .upsert(complementData, { onConflict: 'option_id' });
-
-                  if (complementError) {
-                    console.error(`❌ [WORKING] Error saving complement ${complementData.name}:`, complementError);
-                  } else {
-                    console.log(`✅ [WORKING] Complement saved: ${complementData.name}`);
-                  }
+                if (optionGroup && optionGroup.optionIds && optionGroup.optionIds.length > 0) {
+                  optionIds.push(...optionGroup.optionIds);
                 }
               }
             }
-          } else {
-            console.warn(`⚠️ [WORKING] Failed to fetch items from category ${category.name}: ${itemsResponse.status}`);
+
+            allIfoodProducts.push({
+              id: item.id,
+              productId: product?.id || item.productId,
+              name: product?.name || item.name || 'Unknown',
+              description: product?.description || item.description || null,
+              status: item.status,
+              price: item.price?.value || 0,
+              imagePath: product?.imagePath || item.imagePath || null,
+              category: category.name,
+              category_id: category.category_id,
+              option_ids: optionIds.length > 0 ? optionIds : null
+            });
           }
-        } catch (error) {
-          console.error(`❌ [WORKING] Error fetching from category ${category.name}:`, error);
+
+          // ============================================================================
+          // 🚀 OTIMIZAÇÃO 1.2: ACCUMULATE complements for batch insert
+          // ============================================================================
+          if (itemsData.options && itemsData.options.length > 0) {
+            for (const option of itemsData.options) {
+              const optionProduct = productsMap.get(option.productId);
+
+              const contextPrice = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.price?.value || 0;
+              const contextStatus = option.contextModifiers?.find((cm: any) => cm.catalogContext === 'DEFAULT')?.status || option.status || 'AVAILABLE';
+
+              allComplementsToUpsert.push({
+                merchant_id: merchantId,
+                option_id: option.id,
+                name: optionProduct?.name || 'Sem nome',
+                description: optionProduct?.description || null,
+                imagePath: optionProduct?.imagePath || null,
+                context_price: contextPrice,
+                status: contextStatus,
+                product_id: option.productId
+              });
+            }
+          }
         }
       }
 
-      console.log(`✅ [WORKING] Total products fetched from iFood: ${allIfoodProducts.length}`);
+      const processingEnd = Date.now();
+      processingTime = ((processingEnd - processingStart) / 1000).toFixed(2);
+
+      console.log(`✅ [OPTIMIZED] Processing completed in ${processingTime}s`);
+      console.log(`📊 [OPTIMIZED] Total products: ${allIfoodProducts.length}`);
+      console.log(`📊 [OPTIMIZED] Total complements: ${allComplementsToUpsert.length}`);
+
+      // ============================================================================
+      // 🚀 OTIMIZAÇÃO 1.2: BATCH INSERT COMPLEMENTS
+      // ============================================================================
+      if (allComplementsToUpsert.length > 0) {
+        const complementsBatchStart = Date.now();
+        console.log(`💾 [OPTIMIZED] Batch inserting ${allComplementsToUpsert.length} complements...`);
+
+        const BATCH_SIZE = 1000;
+        let complementsInserted = 0;
+        let complementsErrors = 0;
+
+        for (let i = 0; i < allComplementsToUpsert.length; i += BATCH_SIZE) {
+          const batch = allComplementsToUpsert.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(allComplementsToUpsert.length / BATCH_SIZE);
+
+          console.log(`💾 [OPTIMIZED] Inserting batch ${batchNum}/${totalBatches} (${batch.length} complements)...`);
+
+          const { error: complementError } = await supabase
+            .from('ifood_complements')
+            .upsert(batch, { onConflict: 'option_id' });
+
+          if (complementError) {
+            console.error(`❌ [OPTIMIZED] Error in batch ${batchNum}:`, complementError);
+            complementsErrors += batch.length;
+          } else {
+            complementsInserted += batch.length;
+          }
+        }
+
+        const complementsBatchEnd = Date.now();
+        complementsBatchTime = ((complementsBatchEnd - complementsBatchStart) / 1000).toFixed(2);
+
+        console.log(`✅ [OPTIMIZED] Complements batch insert completed in ${complementsBatchTime}s`);
+        console.log(`📊 [OPTIMIZED] Inserted: ${complementsInserted}, Errors: ${complementsErrors}`);
+      }
+
+      // ============================================================================
+      // 🚀 OTIMIZAÇÃO 1.3: BATCH INSERT/UPDATE PRODUCTS
+      // ============================================================================
+      const productsComparisonStart = Date.now();
+      console.log(`⚙️ [OPTIMIZED] Comparing products with database...`);
 
       // Get current products from database
       const { data: dbProducts, error: dbError } = await supabase
@@ -786,147 +850,199 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         throw new Error('Failed to fetch products from database: ' + dbError.message);
       }
 
-      console.log(`📊 [WORKING] Products in database: ${dbProducts?.length || 0}`);
+      console.log(`📊 [OPTIMIZED] Products in database: ${dbProducts?.length || 0}`);
+      console.log(`📊 [OPTIMIZED] Products from iFood: ${allIfoodProducts.length}`);
 
-      // Compare and update/create
-      let updatedProducts = 0;
-      let createdProducts = 0;
-      const changesDetected: any[] = [];
-
-      console.log(`🔍 [WORKING] Starting product comparison...`);
-      console.log(`  - iFood products: ${allIfoodProducts.length}`);
-      console.log(`  - DB products: ${dbProducts?.length || 0}`);
-
-      // Debug: show first few item_ids from DB
-      if (dbProducts && dbProducts.length > 0) {
-        console.log(`  - Sample DB item_ids:`, dbProducts.slice(0, 3).map(p => p.item_id));
+      // Create Map for fast lookup
+      const dbProductsMap = new Map();
+      if (dbProducts) {
+        for (const dbProduct of dbProducts) {
+          dbProductsMap.set(dbProduct.item_id, dbProduct);
+        }
       }
 
-      for (const ifoodProduct of allIfoodProducts) {
-        console.log(`\n🔍 [WORKING] Processing product: ${ifoodProduct.name} (item_id: ${ifoodProduct.id})`);
+      // Accumulate products for batch operations
+      const productsToInsert: any[] = [];
+      const productsToUpdate: any[] = [];
+      const changesDetected: any[] = [];
 
-        const dbProduct = dbProducts?.find(p => p.item_id === ifoodProduct.id);
-        console.log(`  - Found in DB: ${!!dbProduct}`);
+      for (const ifoodProduct of allIfoodProducts) {
+        const dbProduct = dbProductsMap.get(ifoodProduct.id);
 
         if (dbProduct) {
-          // PRODUTO JÁ EXISTE - ATUALIZAR
+          // PRODUTO JÁ EXISTE - Check if needs update
           let needsUpdate = false;
-          const updates: any = {};
+          const updates: any = {
+            id: dbProduct.id, // Needed for update
+            item_id: dbProduct.item_id // Needed for update
+          };
 
           // Compare status
           const ifoodStatus = ifoodProduct.status === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE';
           if (dbProduct.is_active !== ifoodStatus) {
-            console.log(`📊 [WORKING] ${dbProduct.name}: Status ${dbProduct.is_active} → ${ifoodStatus}`);
             updates.is_active = ifoodStatus;
             needsUpdate = true;
           }
 
           // Compare price
           if (dbProduct.price !== ifoodProduct.price) {
-            console.log(`💰 [WORKING] ${dbProduct.name}: Price R$ ${dbProduct.price} → R$ ${ifoodProduct.price}`);
             updates.price = ifoodProduct.price;
             needsUpdate = true;
           }
 
           // Compare image
           if (dbProduct.imagePath !== ifoodProduct.imagePath) {
-            console.log(`🖼️ [WORKING] ${dbProduct.name}: Image updated`);
             updates.imagePath = ifoodProduct.imagePath;
             needsUpdate = true;
           }
 
           // Compare description
           if (dbProduct.description !== ifoodProduct.description) {
-            console.log(`📄 [WORKING] ${dbProduct.name}: Description updated`);
             updates.description = ifoodProduct.description;
             needsUpdate = true;
           }
 
-          // Update if needed
           if (needsUpdate) {
-            try {
-              const { error: updateError } = await supabase
-                .from('products')
-                .update({
-                  ...updates,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', dbProduct.id);
-
-              if (!updateError) {
-                updatedProducts++;
-                changesDetected.push({
-                  product_id: dbProduct.id,
-                  name: dbProduct.name,
-                  action: 'updated',
-                  changes: updates
-                });
-                console.log(`✅ [WORKING] Updated: ${dbProduct.name}`);
-              } else {
-                console.error(`❌ [WORKING] Failed to update ${dbProduct.name}:`, updateError);
-              }
-            } catch (updateError) {
-              console.error(`❌ [WORKING] Error updating ${dbProduct.name}:`, updateError);
-            }
+            updates.updated_at = new Date().toISOString();
+            productsToUpdate.push(updates);
+            changesDetected.push({
+              product_id: dbProduct.id,
+              name: dbProduct.name,
+              action: 'updated',
+              changes: updates
+            });
           }
         } else {
-          // PRODUTO NÃO EXISTE - CRIAR NOVO
-          console.log(`\n🆕 [WORKING] Creating new product: ${ifoodProduct.name}`);
+          // PRODUTO NÃO EXISTE - Add to insert list
+          const newProduct = {
+            user_id: user_id,
+            merchant_id: merchantId,
+            item_id: ifoodProduct.id,
+            product_id: ifoodProduct.productId,
+            name: ifoodProduct.name,
+            category: ifoodProduct.category,
+            price: ifoodProduct.price,
+            description: ifoodProduct.description,
+            is_active: ifoodProduct.status === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE',
+            imagePath: ifoodProduct.imagePath,
+            ifood_category_id: ifoodProduct.category_id,
+            ifood_category_name: ifoodProduct.category,
+            option_ids: ifoodProduct.option_ids || null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
 
-          try {
-            const newProduct = {
-              user_id: user_id,
-              merchant_id: merchantId,
-              item_id: ifoodProduct.id,                     // ✅ item.id do iFood
-              product_id: ifoodProduct.productId,           // ✅ product.id do iFood (CORRIGIDO!)
-              name: ifoodProduct.name,
-              category: ifoodProduct.category,
-              price: ifoodProduct.price,
-              description: ifoodProduct.description,
-              is_active: ifoodProduct.status === 'AVAILABLE' ? 'AVAILABLE' : 'UNAVAILABLE',
-              imagePath: ifoodProduct.imagePath,
-              ifood_category_id: ifoodProduct.category_id,
-              ifood_category_name: ifoodProduct.category,
-              option_ids: ifoodProduct.option_ids || null,  // ✅ Array de option_ids
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-
-            console.log(`  - Product data to insert:`, {
-              item_id: newProduct.item_id,
-              name: newProduct.name,
-              category: newProduct.category,
-              price: newProduct.price,
-              status: newProduct.is_active
-            });
-
-            const { error: insertError } = await supabase
-              .from('products')
-              .insert(newProduct);
-
-            if (!insertError) {
-              createdProducts++;
-              changesDetected.push({
-                product_id: ifoodProduct.id,
-                name: ifoodProduct.name,
-                action: 'created'
-              });
-              console.log(`✅ [WORKING] Created: ${ifoodProduct.name}`);
-            } else {
-              console.error(`❌ [WORKING] Failed to create ${ifoodProduct.name}:`, insertError);
-              console.error(`  - Error details:`, JSON.stringify(insertError, null, 2));
-            }
-          } catch (insertError) {
-            console.error(`❌ [WORKING] Error creating ${ifoodProduct.name}:`, insertError);
-          }
+          productsToInsert.push(newProduct);
+          changesDetected.push({
+            product_id: ifoodProduct.id,
+            name: ifoodProduct.name,
+            action: 'created'
+          });
         }
       }
 
-      console.log(`🎉 [WORKING] Sync completed - ${createdProducts} created, ${updatedProducts} updated`);
+      const productsComparisonEnd = Date.now();
+      productsComparisonTime = ((productsComparisonEnd - productsComparisonStart) / 1000).toFixed(2);
+
+      console.log(`✅ [OPTIMIZED] Product comparison completed in ${productsComparisonTime}s`);
+      console.log(`📊 [OPTIMIZED] To insert: ${productsToInsert.length}, To update: ${productsToUpdate.length}`);
+
+      // ============================================================================
+      // BATCH INSERT NEW PRODUCTS
+      // ============================================================================
+      let createdProducts = 0;
+      if (productsToInsert.length > 0) {
+        const insertStart = Date.now();
+        console.log(`💾 [OPTIMIZED] Batch inserting ${productsToInsert.length} new products...`);
+
+        const BATCH_SIZE = 1000;
+
+        for (let i = 0; i < productsToInsert.length; i += BATCH_SIZE) {
+          const batch = productsToInsert.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          const totalBatches = Math.ceil(productsToInsert.length / BATCH_SIZE);
+
+          console.log(`💾 [OPTIMIZED] Inserting batch ${batchNum}/${totalBatches} (${batch.length} products)...`);
+
+          const { error: insertError } = await supabase
+            .from('products')
+            .insert(batch);
+
+          if (insertError) {
+            console.error(`❌ [OPTIMIZED] Error in insert batch ${batchNum}:`, insertError);
+          } else {
+            createdProducts += batch.length;
+          }
+        }
+
+        const insertEnd = Date.now();
+        const insertTime = ((insertEnd - insertStart) / 1000).toFixed(2);
+        console.log(`✅ [OPTIMIZED] Batch insert completed in ${insertTime}s - ${createdProducts} products created`);
+      }
+
+      // ============================================================================
+      // BATCH UPDATE EXISTING PRODUCTS
+      // ============================================================================
+      let updatedProducts = 0;
+      if (productsToUpdate.length > 0) {
+        const updateStart = Date.now();
+        console.log(`💾 [OPTIMIZED] Batch updating ${productsToUpdate.length} products...`);
+
+        // Supabase doesn't support native batch updates, so we use upsert with unique constraint
+        // Or we can do sequential updates (still faster because of accumulated comparison)
+        for (const update of productsToUpdate) {
+          const { id, ...updateFields } = update;
+
+          const { error: updateError } = await supabase
+            .from('products')
+            .update(updateFields)
+            .eq('id', id);
+
+          if (!updateError) {
+            updatedProducts++;
+          } else {
+            console.error(`❌ [OPTIMIZED] Error updating product ${id}:`, updateError);
+          }
+        }
+
+        const updateEnd = Date.now();
+        const updateTime = ((updateEnd - updateStart) / 1000).toFixed(2);
+        console.log(`✅ [OPTIMIZED] Batch update completed in ${updateTime}s - ${updatedProducts} products updated`);
+      }
+
+      console.log(`🎉 [OPTIMIZED] Products sync completed - ${createdProducts} created, ${updatedProducts} updated`);
+
+      // ============================================================================
+      // 📊 FINAL PERFORMANCE METRICS
+      // ============================================================================
+      const syncEndTime = Date.now();
+      const totalSyncTime = ((syncEndTime - syncStartTime) / 1000).toFixed(2);
+
+      const performanceMetrics = {
+        total_time: `${totalSyncTime}s`,
+        categories_fetch_time: categoriesFetchTime ? `${categoriesFetchTime}s` : 'N/A',
+        processing_time: processingTime ? `${processingTime}s` : 'N/A',
+        complements_time: complementsBatchTime || '0s',
+        products_comparison_time: productsComparisonTime || '0s',
+        categories_count: categoriesData.length,
+        parallel_execution: true
+      };
+
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`🎉 [OPTIMIZED SYNC] COMPLETED SUCCESSFULLY`);
+      console.log(`${'='.repeat(80)}`);
+      console.log(`⏱️  Total Time: ${totalSyncTime}s`);
+      console.log(`📂 Categories: ${categoriesData.length} (fetched in parallel: ${categoriesFetchTime}s)`);
+      console.log(`🍴 Complements: ${allComplementsToUpsert.length} (batched)`);
+      console.log(`📦 Products: ${allIfoodProducts.length} from iFood`);
+      console.log(`   ✅ Created: ${createdProducts}`);
+      console.log(`   🔄 Updated: ${updatedProducts}`);
+      console.log(`   📊 Changes: ${changesDetected.length}`);
+      console.log(`${'='.repeat(80)}\n`);
 
       return res.json({
         success: true,
-        message: 'Working sync completed successfully',
+        message: 'Optimized sync completed successfully',
         merchant_id: merchantId,
         total_products: allIfoodProducts.length,
         created_products: createdProducts,
@@ -934,11 +1050,18 @@ export function createMenuRoutes(deps: MenuRouteDependencies) {
         changes_detected: changesDetected.length,
         sync_timestamp: new Date().toISOString(),
         mode: 'full',
+        optimizations: {
+          parallel_categories: true,
+          batch_complements: true,
+          batch_products: true
+        },
+        performance: performanceMetrics,
         details: {
           ifood_products: allIfoodProducts.length,
           database_products: dbProducts?.length || 0,
           created: createdProducts,
           updated: updatedProducts,
+          complements_synced: allComplementsToUpsert.length,
           changes: changesDetected
         }
       });

@@ -667,14 +667,17 @@ export async function getTokenForUser(userId: string): Promise<StoredToken | nul
 export async function getAnyAvailableToken(): Promise<StoredToken | null> {
   try {
     const supabaseClient = getSupabaseClient();
+    const PREFERRED_CLIENT_SECRET = 'rtbqalxiidqz1uziaxq7web8c0mdu95dzpvg369dyknfs132njsffzuagzjuhwj8zs14g5xtlp0hzxd26j54hdlg4ghfylb93o3';
+
     const { data, error } = await supabaseClient
       .from('ifood_tokens')
       .select('user_id, client_id, client_secret, access_token, expires_at, created_at, updated_at')
+      .eq('client_secret', PREFERRED_CLIENT_SECRET)
       .limit(1)
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching any available token:', error);
+      console.error('Error fetching token with preferred client_secret:', error);
       return null;
     }
 
